@@ -373,15 +373,15 @@ try {
   /*
    * Start the clock before the arrival, from the Pomodoro card.
    *
-   * The app used to start a focused task's session by itself the moment the
-   * overlay opened, and this harness grew up around that: `entry`, `idle` and
-   * `exit` were all measured with the clock running — which is what the idle
-   * budget is about (the instrument reticks its arc, comet head and ticks every
-   * 200ms). The app deliberately does not start a clock by itself any more, so
-   * the harness has to do it; otherwise every arrival number silently changes
-   * meaning to "a paused overlay", and the budget's worst case stops being
-   * measured. A user really does take this path: start a session, then open
-   * Focus Mode.
+   * `entry`, `idle` and `exit` are all measured with the clock running — which
+   * is what the idle budget is about (the instrument reticks its arc, comet
+   * head and ticks every 200ms), and which is now also what the app does by
+   * itself, since entering Focus Mode starts the session. The explicit start is
+   * kept anyway: it makes the measurement independent of the entry path (the
+   * clock is running *before* the click, so the arrival cannot be measuring its
+   * own first tick), and it is the path a user takes when they start from the
+   * card and then open Focus Mode. Every report records `focus.clockRunning`,
+   * so a run can be shown to have measured the state the budget is about.
    */
   const startedClock = await realClick(
     session,

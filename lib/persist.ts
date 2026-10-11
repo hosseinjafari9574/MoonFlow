@@ -136,6 +136,7 @@ export function normalizeTask(
     createdAt: asEpoch(value.createdAt, fallbackCreatedAt),
     completedAt: completedAt !== null && completedAt > 0 ? completedAt : null,
     pomodoros: asCount(value.pomodoros),
+    focusMinutes: asCount(value.focusMinutes),
   };
 }
 

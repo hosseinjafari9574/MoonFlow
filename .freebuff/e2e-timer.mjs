@@ -15,6 +15,23 @@
  *   7  a running session survives a reload untouched
  *   8  completing a task advances the overlay without starting the clock
  *   9  the task row's explicit start button still runs a session
+ *   10 a session the phone finished while the app was asleep is still recorded
+ *   11 the same completion, noticed late on a live page
+ *   12 a running session's minutes land on the linked task as they are flushed
+ *   13 the linked row shows the live phase, and its button pauses/resumes it
+ *   14 completing the linked task releases the link, leaving the clock alone
+ *   15 deleting the linked task releases the link
+ *   16 a fresh start adopts the row the user is on
+ *   17 the overlay's next task respects the list's tag filter
+ *   18 entering Focus Mode starts the session for that task, with no second
+ *      click, and leaving the overlay leaves it running
+ *   19 entering it on *another* task banks the paused one and arms a whole
+ *      session for the new one
+ *   20 the F shortcut takes the same path
+ *
+ * 10–17 cover the list <-> timer link: which task a session's minutes belong
+ * to, what the list shows while it runs, and what happens to the link when the
+ * task stops being an active row.
  *
  * Every case writes real state through `localStorage` (the app's own key) to a
  * freshly loaded page, then observes the DOM and the persisted payload, so the
@@ -176,13 +193,53 @@ const READ_TODOS = `(() => {
       }),
       { pomodoros: 0, focusMinutes: 0 },
     );
-    return { totals, tasks: (s.tasks || []).map((t) => ({ id: t.id, pomodoros: t.pomodoros })) };
+    return {
+      totals,
+      tasks: (s.tasks || []).map((t) => ({
+        id: t.id,
+        pomodoros: t.pomodoros,
+        focusMinutes: t.focusMinutes,
+      })),
+    };
   } catch (error) {
     return { error: String(error) };
   }
 })()`;
 
 const readTodos = (session) => session.eval(READ_TODOS);
+
+/* What the card says the session is about, and what its picker is showing. */
+const CARD_SUBJECT = `(() => {
+  const card = document.querySelector(${JSON.stringify(CARD)});
+  const ring = card ? card.querySelector('[role="timer"]') : null;
+  const inner = ring ? ring.parentElement : null;
+  if (!inner) return null;
+  const children = [...inner.children];
+  return children.length ? children[children.length - 1].textContent.trim() : null;
+})()`;
+
+const CARD_SELECT = `(() => {
+  const select = document.querySelector('#timer-task');
+  if (!select) return null;
+  const option = select.options[select.selectedIndex] ?? null;
+  return { value: select.value, text: option ? option.textContent.trim() : null };
+})()`;
+
+/** Per row: is it the row the clock is focused on, and what does its chip say. */
+const ROW_CHIPS = `(() => {
+  const out = {};
+  for (const row of document.querySelectorAll('[data-task-id]')) {
+    const chip = row.querySelector('[role="img"]');
+    out[row.getAttribute('data-task-id')] = chip
+      ? { chip: chip.textContent.trim(), label: chip.getAttribute('aria-label') }
+      : { chip: null, label: null };
+  }
+  return out;
+})()`;
+
+const cardSubject = (session) => session.eval(CARD_SUBJECT);
+const cardSelect = (session) => session.eval(CARD_SELECT);
+const rowChips = (session) => session.eval(ROW_CHIPS);
 
 const seconds = (clock) => {
   if (!clock) return null;
@@ -209,7 +266,14 @@ async function click(session, selector) {
     const r = el.getBoundingClientRect();
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
   })()`);
-  if (!box) throw new Error(`no element to click: ${selector}`);
+  if (!box) {
+    /* Say what *is* on screen — a missing target is usually a wrong overlay. */
+    const seen = await session.eval(`(() => ({
+      dialogs: [...document.querySelectorAll('[role="dialog"]')].map((d) => d.getAttribute('aria-label')),
+      rows: [...document.querySelectorAll('[data-task-id]')].map((r) => r.getAttribute('data-task-id')),
+    }))()`);
+    throw new Error(`no element to click: ${selector} — on screen: ${JSON.stringify(seen)}`);
+  }
   const base = { x: box.x, y: box.y, button: "left", clickCount: 1 };
   await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
   await session.send("Input.dispatchMouseEvent", { type: "mousePressed", ...base });
@@ -240,7 +304,7 @@ const timerPayload = ({
   version: 1,
 });
 
-const todosPayload = (titles) => ({
+const todosPayload = (titles, activity = {}, overrides = []) => ({
   state: {
     tasks: titles.map((title, index) => ({
       id: `e2e-${index}`,
@@ -251,12 +315,22 @@ const todosPayload = (titles) => ({
       createdAt: Date.now() - index * 1000,
       completedAt: null,
       pomodoros: 0,
+      focusMinutes: 0,
+      ...(overrides[index] ?? {}),
     })),
-    activity: {},
+    activity,
     settings: { soundEnabled: false },
   },
   version: 1,
 });
+
+/** `lib/format.ts`'s `dayKey()`: the *local* calendar day, as "YYYY-MM-DD". */
+const localDayKey = () => {
+  const now = new Date();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+};
 
 /**
  * Park the app, pause anything running (a live clock rewrites storage every
@@ -445,7 +519,7 @@ try {
     JSON.stringify({ from: beforeSkip.heading, to: skipped.heading, clock: skipped.clock, saved: skipped.saved }),
   );
 
-  /* 6 — Focus Mode's button says what the clock actually is --------------- */
+  /* 6 — entering Focus Mode is the start ----------------------------------- */
   const todos = todosPayload(["E2E task"]);
   await load(
     session,
@@ -457,29 +531,22 @@ try {
   await waitFor(session, `!!document.querySelector(${JSON.stringify(OVERLAY)})`, "focus mode to open");
   await sleep(500);
   const opened = await read(session);
-  /*
-   * Opening the overlay links the task and nothing else. If it ever starts the
-   * clock again, stop it so later checks stay meaningful — but `opened' has
-   * already recorded the failure below.
-   */
-  if (opened.saved?.running) {
-    await click(session, `${OVERLAY} button[aria-label="Pause timer"]`);
-    await sleep(400);
-  }
-  const pausedDwell = await read(session);
-  const pausedFreeze = await frozen(session);
+  await sleep(1_200);
+  const openedLater = await read(session);
   check(
-    "6a a half-spent, paused clock reads \"Resume\", and opening the overlay starts nothing",
-    opened.saved?.running === false &&
-      pausedDwell.dialogLabel === "Resume timer" &&
-      pausedDwell.dialogText === "Resume" &&
-      pausedDwell.saved?.running === false &&
-      pausedFreeze.before === pausedFreeze.after,
+    "6a opening Focus Mode resumes the paused session it belongs to, rather than resetting it",
+    beforeOpen.saved?.running === false &&
+      beforeOpen.button === "Start timer" &&
+      opened.saved?.running === true &&
+      opened.saved?.taskId === "e2e-0" &&
+      opened.dialogLabel === "Pause timer" &&
+      (seconds(opened.clock) ?? 0) <= 600 &&
+      (seconds(opened.clock) ?? 0) > 590 &&
+      (seconds(openedLater.clock) ?? 0) < (seconds(opened.clock) ?? 0),
     JSON.stringify({
-      beforeOpen: { button: beforeOpen.button, running: beforeOpen.saved?.running },
-      opened: { label: opened.dialogLabel, running: opened.saved?.running },
-      settled: { label: pausedDwell.dialogLabel, text: pausedDwell.dialogText, running: pausedDwell.saved?.running },
-      clock: [pausedFreeze.before, pausedFreeze.after],
+      beforeOpen: { button: beforeOpen.button, clock: beforeOpen.clock, running: beforeOpen.saved?.running },
+      opened: { label: opened.dialogLabel, clock: opened.clock, saved: opened.saved },
+      later: openedLater.clock,
     }),
   );
   await click(session, `${OVERLAY} button[aria-label="Exit focus mode"]`);
@@ -493,30 +560,45 @@ try {
   await click(session, `button[aria-label="Enter focus mode for “E2E task”"]`);
   await waitFor(session, `!!document.querySelector(${JSON.stringify(OVERLAY)})`, "focus mode to reopen");
   await sleep(500);
-  const armedDwell = await read(session);
+  const dwell = await read(session);
   check(
-    "6b an armed, untouched clock reads \"Start\" in Focus Mode",
-    armedDwell.dialogLabel === "Start timer" && armedDwell.dialogText === "Start",
-    JSON.stringify({ label: armedDwell.dialogLabel, text: armedDwell.dialogText }),
+    "6b opening Focus Mode during a break starts a focus session for that task",
+    dwell.dialogLabel === "Pause timer" &&
+      dwell.saved?.mode === "focus" &&
+      dwell.saved?.running === true &&
+      dwell.saved?.taskId === "e2e-0" &&
+      (seconds(dwell.clock) ?? 0) > 1490,
+    JSON.stringify({ label: dwell.dialogLabel, clock: dwell.clock, saved: dwell.saved }),
   );
-  await click(session, `${OVERLAY} button[aria-label="Start timer"]`);
-  await sleep(1400);
-  const dwellRunning = await read(session);
+  await click(session, `${OVERLAY} button[aria-label="Pause timer"]`);
+  await sleep(400);
+  const pausedDwell = await read(session);
+  const pausedFreeze = await frozen(session);
   check(
-    "6c Start inside Focus Mode runs the armed break",
-    dwellRunning.dialogLabel === "Pause timer" &&
-      seconds(dwellRunning.clock) < 300 &&
-      dwellRunning.saved?.running === true,
-    JSON.stringify({ label: dwellRunning.dialogLabel, clock: dwellRunning.clock }),
+    "6c Pause inside Focus Mode stops that session, and it stays stopped",
+    pausedDwell.saved?.running === false &&
+      pausedDwell.dialogLabel === "Resume timer" &&
+      pausedFreeze.before === pausedFreeze.after &&
+      pausedFreeze.before > 1480,
+    JSON.stringify({
+      label: pausedDwell.dialogLabel,
+      saved: pausedDwell.saved,
+      clock: [pausedFreeze.before, pausedFreeze.after],
+    }),
   );
 
-  /* 8 — the automatic advance is a state change, not a start -------------- */
+  /*
+   * 8 — the automatic advance is a state change, not a start. Completing the
+   * task ends *its* session (the minutes are banked where they were spent) and
+   * the next task arrives armed, with a whole session in front of it. Seeded 15
+   * minutes into "First task", so the banking is measurable.
+   */
   await load(
     session,
     timerPayload({
       mode: "focus",
       running: false,
-      remainingMs: DURATIONS.focus,
+      remainingMs: 600_000,
       taskId: "e2e-0",
     }),
     todosPayload(["First task", "Second task"]),
@@ -534,20 +616,24 @@ try {
   await sleep(300);
   const advanced = await read(session);
   const advancedFreeze = await frozen(session);
+  const advancedBanked = await readTodos(session);
   check(
-    "8 completing a task moves the overlay on without starting the clock",
+    "8 completing a task banks its part-session and arms the next one, unstarted",
     advanced.dialogTask === "Second task" &&
       advanced.saved?.taskId === "e2e-1" &&
       advanced.saved?.running === false &&
       advanced.saved?.endsAt === null &&
       advanced.dialogLabel === "Start timer" &&
       advancedFreeze.before === advancedFreeze.after &&
-      advancedFreeze.before === 1500,
+      advancedFreeze.before === 1500 &&
+      advancedBanked.tasks?.find((t) => t.id === "e2e-0")?.focusMinutes === 15 &&
+      advancedBanked.tasks?.find((t) => t.id === "e2e-0")?.pomodoros === 0,
     JSON.stringify({
       task: advanced.dialogTask,
       label: advanced.dialogLabel,
       saved: advanced.saved,
       frozen: [advancedFreeze.before, advancedFreeze.after],
+      banked: advancedBanked,
     }),
   );
   await click(session, `${OVERLAY} button[aria-label="Exit focus mode"]`);
@@ -594,6 +680,11 @@ try {
    * tick that crossed zero. The app only learns about it when it is opened
    * again, half an hour after the session ended — and it must still count it,
    * with the whole session's minutes, not the two it watched go by.
+   *
+   * The seed is the state the phone would really be holding: two minutes already
+   * banked to stats and marked as flushed, and the clock frozen 23 minutes from
+   * the end. 25 minutes is the honest total — 2 that were banked before the
+   * screen locked, 23 that only the frozen clock knew about.
    */
   await load(
     session,
@@ -605,7 +696,12 @@ try {
       flushedMs: 2 * 60_000,
       taskId: "e2e-0",
     }),
-    todosPayload(["Phone task"]),
+    todosPayload(
+      ["Phone task"],
+      { [localDayKey()]: { completed: 0, pomodoros: 0, focusMinutes: 2 } },
+      /* Those two minutes were banked against the task as well as the day. */
+      [{ focusMinutes: 2 }],
+    ),
   );
   const late = await read(session);
   const lateBanked = await readTodos(session);
@@ -620,7 +716,8 @@ try {
       late.saved?.sessions === 1 &&
       lateBanked.totals?.pomodoros === 1 &&
       lateBanked.totals?.focusMinutes === 25 &&
-      lateBanked.tasks?.find((t) => t.id === "e2e-0")?.pomodoros === 1,
+      lateBanked.tasks?.find((t) => t.id === "e2e-0")?.pomodoros === 1 &&
+      lateBanked.tasks?.find((t) => t.id === "e2e-0")?.focusMinutes === 25,
     JSON.stringify({ heading: late.heading, clock: late.clock, saved: late.saved, banked: lateBanked }),
   );
 
@@ -658,8 +755,285 @@ try {
       jumped.saved?.running === false &&
       jumped.saved?.sessions === 1 &&
       jumpedBanked.totals?.pomodoros === 1 &&
-      jumpedBanked.totals?.focusMinutes > 0,
+      jumpedBanked.totals?.focusMinutes > 0 &&
+      jumpedBanked.tasks?.find((t) => t.id === "e2e-0")?.focusMinutes === 25,
     JSON.stringify({ heading: jumped.heading, clock: jumped.clock, saved: jumped.saved, banked: jumpedBanked }),
+  );
+
+  /*
+   * 12 — the minutes a session banks land on the *task* as they are flushed,
+   * not only on the day when the session finally ends. Seeded 23 minutes into a
+   * 25-minute focus session, so one tick is enough to show it.
+   */
+  await load(
+    session,
+    timerPayload({
+      mode: "focus",
+      running: true,
+      endsAt: Date.now() + 88_000,
+      remainingMs: 88_000,
+      taskId: "e2e-0",
+    }),
+    todosPayload(["In-flight task"]),
+  );
+  const inFlight = await read(session);
+  const inFlightBanked = await readTodos(session);
+  check(
+    "12 a running session's minutes land on the linked task as they are flushed",
+    inFlight.saved?.running === true &&
+      inFlightBanked.totals?.focusMinutes === 23 &&
+      inFlightBanked.tasks?.find((t) => t.id === "e2e-0")?.focusMinutes === 23 &&
+      inFlightBanked.tasks?.find((t) => t.id === "e2e-0")?.pomodoros === 0,
+    JSON.stringify({ saved: inFlight.saved, banked: inFlightBanked }),
+  );
+
+  /*
+   * 13 — the row the clock is focused on carries the live phase and the clock,
+   * and its own button drives that session instead of dead-ending on it.
+   */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: DURATIONS.focus }),
+    todosPayload(["First task", "Second task"]),
+  );
+  await click(session, `button[aria-label="Start a focus session for “First task”"]`);
+  await sleep(900);
+  const linked = await read(session);
+  const linkedChips = await rowChips(session);
+  const linkedSubject = await cardSubject(session);
+  check(
+    "13 the linked row shows the live phase and clock, and no other row does",
+    linked.saved?.taskId === "e2e-0" &&
+      linked.saved?.running === true &&
+      /^Focus · \d+:\d\d$/.test(linkedChips["e2e-0"]?.chip ?? "") &&
+      linkedChips["e2e-1"]?.chip === null &&
+      linkedSubject === "First task",
+    JSON.stringify({ saved: linked.saved, chips: linkedChips, subject: linkedSubject }),
+  );
+  await click(session, `button[aria-label="Pause the focus session for “First task”"]`);
+  await sleep(400);
+  const held = await read(session);
+  await sleep(1_200);
+  const heldLater = await read(session);
+  check(
+    "13b the linked row's button pauses the session it already owns",
+    held.saved?.running === false &&
+      held.saved?.taskId === "e2e-0" &&
+      heldLater.saved?.running === false &&
+      seconds(heldLater.clock) === seconds(held.clock),
+    JSON.stringify({ saved: held.saved, clock: [held.clock, heldLater.clock] }),
+  );
+  await click(session, `button[aria-label="Resume the focus session for “First task”"]`);
+  await sleep(700);
+  const resumedAgain = await read(session);
+  check(
+    "13c and resumes it, instead of starting a second session over it",
+    resumedAgain.saved?.running === true &&
+      resumedAgain.saved?.taskId === "e2e-0" &&
+      (seconds(resumedAgain.clock) ?? 0) < (seconds(held.clock) ?? 0),
+    JSON.stringify({ clock: resumedAgain.clock, saved: resumedAgain.saved }),
+  );
+
+  /*
+   * 14 — the link is only ever an active task: completing the one the clock is
+   * focused on releases it. The clock itself is untouched — those minutes still
+   * belong to today; they just stop belonging to a finished task.
+   */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: DURATIONS.focus }),
+    todosPayload(["Doomed task"]),
+  );
+  await click(session, `button[aria-label="Start a focus session for “Doomed task”"]`);
+  await sleep(700);
+  await click(session, `[data-task-id="e2e-0"] button[role="checkbox"]`);
+  await sleep(700);
+  const afterComplete = await read(session);
+  const subjectAfterComplete = await cardSubject(session);
+  const selectAfterComplete = await cardSelect(session);
+  const chipsAfterComplete = await rowChips(session);
+  check(
+    "14 completing the linked task releases the link, leaving the clock alone",
+    afterComplete.saved?.taskId === null &&
+      afterComplete.saved?.running === true &&
+      subjectAfterComplete === "No task linked" &&
+      selectAfterComplete?.value === "" &&
+      chipsAfterComplete["e2e-0"]?.chip === null,
+    JSON.stringify({
+      saved: afterComplete.saved,
+      subject: subjectAfterComplete,
+      select: selectAfterComplete,
+      chips: chipsAfterComplete,
+    }),
+  );
+
+  /* 15 — and so does deleting it. */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: DURATIONS.focus }),
+    todosPayload(["Removed task"]),
+  );
+  await click(session, `button[aria-label="Start a focus session for “Removed task”"]`);
+  await sleep(700);
+  await click(session, `button[aria-label="Delete “Removed task”"]`);
+  await sleep(700);
+  const afterDelete = await read(session);
+  const deletedRowGone = await session.eval(
+    `document.querySelector('[data-task-id="e2e-0"]') === null`,
+  );
+  check(
+    "15 deleting the linked task releases the link too",
+    afterDelete.saved?.taskId === null && deletedRowGone === true,
+    JSON.stringify({ saved: afterDelete.saved, rowGone: deletedRowGone }),
+  );
+
+  /*
+   * 16 — the list's cursor and the card's "focusing on" are one idea: a fresh
+   * start adopts the row the user is on rather than banking to nowhere.
+   */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: DURATIONS.focus }),
+    todosPayload(["First task", "Second task"]),
+  );
+  await click(session, `[data-task-id="e2e-1"]`);
+  await sleep(250);
+  await click(session, `${CARD} button[aria-label="Start timer"]`);
+  await sleep(900);
+  const adopted = await read(session);
+  const adoptedSelect = await cardSelect(session);
+  const adoptedChips = await rowChips(session);
+  check(
+    "16 a fresh start adopts the row the user is on",
+    adopted.saved?.taskId === "e2e-1" &&
+      adopted.saved?.running === true &&
+      adoptedSelect?.text === "Second task" &&
+      /^Focus · \d+:\d\d$/.test(adoptedChips["e2e-1"]?.chip ?? "") &&
+      adoptedChips["e2e-0"]?.chip === null,
+    JSON.stringify({ saved: adopted.saved, select: adoptedSelect, chips: adoptedChips }),
+  );
+
+  /*
+   * 17 — "next task" means the next row the *list* would show, inside the filter
+   * the user is looking through. Here the only #work row is the one that was
+   * just completed, so the overlay closes rather than jumping to a task the
+   * current filter hides.
+   */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: DURATIONS.focus }),
+    todosPayload(["Tagged task", "Untagged task"], {}, [{ tags: ["work"] }]),
+  );
+  await session.eval(`(() => {
+    const button = [...document.querySelectorAll('section[aria-label="Tasks"] button')].find(
+      (el) => el.textContent.trim() === "#work",
+    );
+    if (button) button.click();
+    return Boolean(button);
+  })()`);
+  /* Long enough for the filtered list to stop animating before anything is clicked. */
+  await sleep(900);
+  await click(session, `button[aria-label="Enter focus mode for “Tagged task”"]`);
+  await waitFor(session, `!!document.querySelector(${JSON.stringify(OVERLAY)})`, "focus mode for the tagged task");
+  await sleep(400);
+  await click(session, `${OVERLAY} button[aria-label="Complete “Tagged task””]`);
+  await sleep(2_200);
+  const overlayGone = await session.eval(
+    `document.querySelector(${JSON.stringify(OVERLAY)}) === null`,
+  );
+  check(
+    "17 the overlay's next task respects the list's tag filter",
+    overlayGone === true,
+    JSON.stringify({ overlayGone }),
+  );
+
+  /*
+   * 18 — entering Focus Mode *is* the start. One click on a row's focus-mode
+   * button runs that task's session, and the overlay opens already running.
+   */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: DURATIONS.focus }),
+    todosPayload(["Entry task"]),
+  );
+  await click(session, `button[aria-label="Enter focus mode for “Entry task”"]`);
+  await waitFor(session, `!!document.querySelector(${JSON.stringify(OVERLAY)})`, "focus mode to open");
+  await sleep(600);
+  const entered = await read(session);
+  const enteredChips = await rowChips(session);
+  check(
+    "18 clicking focus mode starts the session for that task, with no second click",
+    entered.saved?.running === true &&
+      entered.saved?.taskId === "e2e-0" &&
+      entered.saved?.mode === "focus" &&
+      entered.dialogLabel === "Pause timer" &&
+      (seconds(entered.clock) ?? 0) < 1500 &&
+      /^Focus · \d+:\d\d$/.test(enteredChips["e2e-0"]?.chip ?? ""),
+    JSON.stringify({
+      saved: entered.saved,
+      label: entered.dialogLabel,
+      clock: entered.clock,
+      chips: enteredChips,
+    }),
+  );
+  await click(session, `${OVERLAY} button[aria-label="Exit focus mode"]`);
+  await sleep(700);
+  const afterExit = await read(session);
+  const subjectAfterExit = await cardSubject(session);
+  check(
+    "18b leaving Focus Mode keeps the session running, and the card names its task",
+    afterExit.saved?.running === true &&
+      afterExit.button === "Pause timer" &&
+      afterExit.saved?.taskId === "e2e-0" &&
+      subjectAfterExit === "Entry task",
+    JSON.stringify({ saved: afterExit.saved, button: afterExit.button, subject: subjectAfterExit }),
+  );
+
+  /*
+   * 19 — the other half of the same rule: a paused clock that belongs to a
+   * *different* task is banked where it was spent, and the new task gets a whole
+   * session rather than the tail of someone else's. Seeded 15 minutes into
+   * "First task", then Focus Mode on "Second task".
+   */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: 600_000, taskId: "e2e-0" }),
+    todosPayload(["First task", "Second task"]),
+  );
+  await click(session, `button[aria-label="Enter focus mode for “Second task”"]`);
+  await waitFor(session, `!!document.querySelector(${JSON.stringify(OVERLAY)})`, "focus mode for the second task");
+  await sleep(700);
+  const switched = await read(session);
+  const switchedBanked = await readTodos(session);
+  check(
+    "19 entering Focus Mode on another task banks the paused one and arms a whole session",
+    switched.saved?.taskId === "e2e-1" &&
+      switched.saved?.running === true &&
+      (seconds(switched.clock) ?? 0) > 1490 &&
+      switchedBanked.tasks?.find((t) => t.id === "e2e-0")?.focusMinutes === 15 &&
+      switchedBanked.tasks?.find((t) => t.id === "e2e-1")?.focusMinutes === 0 &&
+      switchedBanked.totals?.focusMinutes === 15,
+    JSON.stringify({ saved: switched.saved, clock: switched.clock, banked: switchedBanked }),
+  );
+
+  /* 20 — and the keyboard takes the same path as the button. */
+  await load(
+    session,
+    timerPayload({ mode: "focus", running: false, remainingMs: DURATIONS.focus }),
+    todosPayload(["Keyboard task"]),
+  );
+  await session.eval(
+    `(() => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "f" })); return true; })()`,
+  );
+  await waitFor(session, `!!document.querySelector(${JSON.stringify(OVERLAY)})`, "focus mode from the keyboard", 6000);
+  await sleep(600);
+  const keyed = await read(session);
+  check(
+    "20 the F shortcut enters Focus Mode and starts the session too",
+    keyed.saved?.running === true &&
+      keyed.saved?.taskId === "e2e-0" &&
+      keyed.dialogLabel === "Pause timer",
+    JSON.stringify({ saved: keyed.saved, label: keyed.dialogLabel }),
   );
 
   check("no console errors or uncaught exceptions during the run", session.problems.length === 0, session.problems.slice(0, 4).join(" | ") || "clean");

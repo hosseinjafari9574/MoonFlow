@@ -69,10 +69,10 @@ export const focusShell: Variants = {
 /**
  * The room, split in two on purpose.
  *
- * `focusAurora` carries the blurred blobs and only ever *translates* — a scaling
- * layer forces the browser to re-raster a 130–150px blur on every frame, which
+ * `focusAurora` carries the cloud and only ever *translates* — a scaling layer
+ * forces the browser to re-raster a 130–150px blur on every frame, which
  * measured as ~45% of the entry's dropped frames. `focusLens` carries the cheap
- * layers (specks, breathing rings) and does the actual push-in.
+ * drifting specks and settles them in behind it.
  */
 export const focusAurora: Variants = {
   hidden: { opacity: 0, y: 26 },
@@ -80,10 +80,19 @@ export const focusAurora: Variants = {
   exit: { opacity: 0, transition: { duration: 0.3, ease: EASE_SOFT } },
 };
 
+/**
+ * The speck layer's settle — a translate, never a scale.
+ *
+ * It used to push in (`scale: 1.05 → 1`), and the specks are what could not
+ * take it: they are 1–2.5px wide, so a scaling ancestor resamples each one on
+ * every frame of the move. On a phone DPR (2.6–3) that makes whole dots flicker
+ * in and out and crawl, which is the shimmer reported from the Android build.
+ * A translate and a fade read as the same drift-in and cost no resampling.
+ */
 export const focusLens: Variants = {
-  hidden: { opacity: 0, scale: 1.05 },
-  show: { opacity: 1, scale: 1, transition: { duration: 1.05, ease: EASE_OUT_EXPO } },
-  exit: { opacity: 0, scale: 1.04, transition: { duration: 0.36, ease: EASE_SOFT } },
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 1.05, ease: EASE_OUT_EXPO } },
+  exit: { opacity: 0, y: 12, transition: { duration: 0.36, ease: EASE_SOFT } },
 };
 
 /**

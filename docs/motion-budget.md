@@ -19,6 +19,11 @@ node .freebuff/perf-focus.mjs --ghostProbe    # is anything invisible mounted at
                                               # start-up?
 node .freebuff/startup-check.mjs 4            # start-up: when the list appears,
                                               # and its own first frames
+node .freebuff/visual-check.mjs              # phone viewport (390x844 @ DPR 3):
+                                              # the blooms' pixel falloff against
+                                              # an unmasked reference of the same
+                                              # fill, and that Focus Mode's speck
+                                              # layer and ring halo never scale
 node .freebuff/perf-summary.mjs <label> run1.json run2.json run3.json
 node .freebuff/phase-table.mjs run1.json run2.json   # one line per run, and
                                                      # *where* its slow frames fall
@@ -238,6 +243,78 @@ page's sidebar 62 times behind an opaque overlay. CLS is 0 in every phase.
    One thing the trial could not test is the *page*: the first arrival is also
    the page shell's first full-page transform and raster, which a pre-warm of the
    overlay cannot pay for by construction — see "What is left".
+
+## The phone pass (2026-10-11)
+
+Reported from the deployed build on a real Android phone: the Focus Mode arrival
+"glitches" and its animation looks wrong. Four things changed — three in the
+moving layers, one in the timer. None of them is a frame-budget item: the
+controls call all of this healthy, because restarting a tween or re-rastering a
+blur costs frames only when the device is slow enough to notice. They are
+correctness bugs in the motion, so they were measured with a different
+instrument: `pixels` compared against an unmasked reference, and computed
+`transform`/`opacity` sampled over time (`.freebuff/visual-check.mjs`).
+
+1. **The big blurs are masks now.** The three `.ambient` page blobs (520, 460 and
+   288px) and the Pomodoro card's glow carried `filter: blur(90px)`. A 90px
+   gaussian on a layer that size is expensive at phone DPRs, and it is recomputed
+   whenever the layer is re-rastered — a `position: fixed` blob is re-rastered
+   when the mobile browser collapses its chrome on scroll, and the card's glow
+   sits inside the shell that *scales* on the way into Focus Mode (change 1
+   keeps that scale). `.bloom` — a radial `mask-image` over the same fill — gives
+   the same cloud without running a kernel. Verified per fill, masked against an
+   unmasked square of the identical colour: centre 51/51 (`primary/20`), 14/14
+   (`ivory/6`), 26/26 (`primary/10`), 64/64 (`primary/25`); ≤2 levels left by the
+   box's own edge; nothing painted outside it; largest step along the walk 1–2
+   levels of 255 (8 on the white control, i.e. one gradient sample).
+
+2. **The specks no longer ride a scaling layer.** `focusLens` pushed in with
+   `scale: 1.05 → 1` over 1.05s. The dots are 1–2.5px, so a scaling ancestor
+   resamples every one of them on every frame of that move, and at a phone DPR
+   (2.6–3) they flicker and crawl. The settle is a translate and a fade now — the
+   same read, no resampling. Verified: the speck layer's computed scale stays
+   exactly 1 through the settle (`lensScale [1, 1]`) while all 16 specks still
+   mount and drift.
+
+3. **The ring halo's breath was restarting five times a second** — the actual
+   bug behind "the animation looks wrong". Two changes live here. The halo used
+   to scale (1 → 1.035) forever on a full-ring layer, over a ring whose arc,
+   comet head and graduation ticks repaint every 200ms; the breath is
+   opacity-only now. But the reason it was *wrong* is its animated target:
+   `{ opacity: [0.5 + progress * 0.25, 0.95] }`. Framer restarts an animation
+   whose target changed, and `progress` is rebuilt from `remainingMs` on every
+   200ms tick — so the breath restarted about five times a second and never got
+   past its opening frames. Measured in the phone viewport: the halo's opacity
+   moved **0.500 → 0.504 across 4.5 seconds**, while the CSS-driven base ring in
+   the same overlay, in the same window and on the same frames, completed its
+   entire 8s loop (scale 0.980 → 1.04). That control matters: on its own, a
+   frozen number could have meant a throttled sampling window, and it did not.
+   The targets are constants now, and the progress signal moved into the halo's
+   own gradient — a style, so a repaint, never a restart — quantised to 5% steps
+   so a whole session costs ~20 repaints instead of ~750. Verified after:
+   opacity **0.470 → 0.950 across 4.5s** (the whole designed breath) with scale
+   still exactly 1.
+
+4. **A session that ended while the page was frozen is recorded** (the timer, not
+   the motion — it came from the same report). `tick()` used to discard a
+   completion noticed more than ten minutes late. A phone can never satisfy that
+   rule: a locked screen stops the interval for the *whole* session, so the
+   completion is always noticed late — the session was thrown away, and with it
+   the minutes. A clock that reached zero is now always a completion, and
+   `completeSession` banks the whole session (`remainingMs: 0` before
+   `syncAccrual`) rather than the fraction the engine happened to watch tick by.
+   Covered by `.freebuff/e2e-timer.mjs` case 10 (reopened half an hour after a
+   session that ended while the page was frozen: 2 minutes banked before the
+   lock + 23 the frozen clock knew about = 25, pomodoro counted, break armed)
+   and case 11 (the same completion, noticed late on a live page).
+
+**What this pass cannot prove.** Every number above is headless Chrome on this
+machine, and the artifacts were seen on Android — a tiled, throttled, bandwidth-
+starved GPU none of these tools runs on. So the checks verify the *mechanisms*
+(a mask that really falls off, a layer that really keeps its scale at 1, an
+animation that really completes its cycle) rather than the device. If the
+reported glitch was something else on that hardware, these four are still things
+the budget had wrong, but the phone has the last word.
 
 ## What is left
 

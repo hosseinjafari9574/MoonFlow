@@ -6,6 +6,7 @@ import { normalizeTimer } from "@/lib/persist";
 import { playSound } from "@/lib/sound";
 import type { TimerMode, TimerPresetId } from "@/lib/types";
 import { useTodoStore } from "@/store/use-todo-store";
+import { useUiStore } from "@/store/use-ui-store";
 
 /**
  * A presentational phase hand-off. The store transitions instantly; this
@@ -87,10 +88,31 @@ export const useTimerStore = create<TimerState>()(
           state.remainingMs > 0
             ? state.remainingMs
             : durationFor(state.preset, state.mode);
+        /*
+         * A *fresh* focus clock adopts the task the user is on. The list's
+         * cursor and the card's "focusing on" are the same idea: starting a
+         * session with a row selected should bank its minutes there instead of
+         * nowhere. Only a fresh clock, and only when nothing is linked yet — a
+         * paused or running session is never re-pointed behind the user's back,
+         * and once a link exists the dropdown is the only thing that moves it.
+         */
+        const selected = useUiStore.getState().selectedId;
+        const selectedTask = selected
+          ? useTodoStore.getState().tasks.find((task) => task.id === selected)
+          : null;
+        const adopt =
+          state.mode === "focus" &&
+          state.taskId === null &&
+          remaining === durationFor(state.preset, "focus") &&
+          selectedTask &&
+          !selectedTask.completed
+            ? selectedTask.id
+            : null;
         set({
           running: true,
           remainingMs: remaining,
           endsAt: Date.now() + remaining,
+          ...(adopt ? { taskId: adopt } : {}),
         });
       },
 
@@ -123,9 +145,11 @@ export const useTimerStore = create<TimerState>()(
 
       /*
        * Skipping moves the phase on; like the automatic hand-off it stops
-       * there. One rule for the whole timer: a clock only runs because the user
-       * started it — otherwise the break after a skip is spent away from the
-       * screen before it is ever noticed.
+       * there. One rule for the whole timer: a clock runs because the user
+       * asked for one — by pressing Start, or by entering Focus Mode on a task,
+       * which is the same request — and never because a phase changed on its
+       * own. Otherwise the break after a skip is spent away from the screen
+       * before it is ever noticed.
        */
       skip: () => {
         const state = get();
@@ -267,7 +291,13 @@ export const useTimerStore = create<TimerState>()(
         const pending = elapsed - state.flushedMs;
         const minutes = Math.floor(pending / 60_000);
         if (minutes <= 0) return;
-        useTodoStore.getState().addFocusMinutes(minutes);
+        /*
+         * The minutes go to today *and* to the task the clock is linked to, so
+         * a task's time and its session count come from the same clock. If the
+         * user re-points the timer mid-session, the minutes already banked stay
+         * with the task that earned them and the rest follow the new link.
+         */
+        useTodoStore.getState().addFocusMinutes(minutes, state.taskId);
         set({ flushedMs: state.flushedMs + minutes * 60_000 });
       },
     }),

@@ -64,9 +64,11 @@ npm run typecheck  # tsc --noEmit
   - **Deep Work** — 50 min focus / 10 min break (20 min long break after four
     blocks)
   A smooth hand-off: when a session ends, the next phase arms itself and the
-  state changes on its own — but the clock never starts itself, every session
-  waits for your Start. Optional sound feedback, session counters, skip and
-  reset. Completed sessions are persisted per task and overall.
+  state changes on its own — but a phase change never starts a clock. Sessions
+  run because you asked for one: Start, or entering Focus Mode on a task, which
+  starts that task's session as it opens. Optional sound feedback, session
+  counters, skip and reset. Completed sessions and focus minutes are persisted
+  per task and overall.
 - **Tasks** — create, edit, delete, complete, plus optional priority and tags
   with tag filtering.
 - **Stats & streak** — completed today, focus minutes today, current streak and
@@ -104,7 +106,9 @@ Tokens live in `app/globals.css` under `@theme` (`background`, `foreground`,
 `ivory`, `primary`/`primary-soft`, `achievement`, surfaces 1–3, hairline and
 surface overlays, the `--text-*` type scale, and the sans/mono families).
 Reusable layer: `.panel` (matte gradient-bordered surface), `.inset`, `.kbd`,
-`.hairline`, `.ambient`, `.skeleton`, `.dot-grid`, `.grain`, `.float-up`.
+`.hairline`, `.ambient` + `.bloom` (a soft glow, faded by a radial mask rather
+than a 90px gaussian blur — see docs/motion-budget.md), `.skeleton`, `.dot-grid`,
+`.grain`, `.float-up`.
 
 Motion is centralised in `lib/motion.ts` (durations, springs, variants) and
 phase colour in `lib/tone.ts` — components read the tone by timer mode instead
@@ -129,3 +133,10 @@ timer mode or preset falls back to Classic focus, a running clock with no end
 stamp reads as paused, and a payload stamped with a *newer* version is
 normalised instead of thrown away. Only entries carrying no information at all
 (a task with no title, a day key that isn't a day key) are dropped.
+
+A running clock is the one piece of state the browser can freeze. A phone that
+locks its screen stops the timer's interval for the whole session, so the
+completion is always noticed late, and the store treats the clock *reaching*
+zero as the session whatever the page was doing at the time — banking the
+session's whole minutes rather than the ones it watched go by. Both paths are
+covered in `.freebuff/e2e-timer.mjs` (cases 10 and 11).

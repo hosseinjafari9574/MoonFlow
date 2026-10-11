@@ -187,12 +187,37 @@
     );
   }
 
+  /*
+   * A soft bloom: a solid fill faded to nothing by a radial mask.
+   *
+   * This is what replaced `filter: blur(90px)` on the blobs. A 90px kernel on a
+   * 256–520px layer is expensive at phone DPRs, and it is re-run every time the
+   * layer is re-rastered — a `position: fixed` blob is re-rastered whenever the
+   * mobile browser collapses its chrome, and any scaled ancestor does it too.
+   * A mask gives the same soft cloud for one cheap raster and never runs a blur
+   * kernel. Same trade the Focus Mode aurora already makes; the numbers behind
+   * it are in docs/motion-budget.md.
+   */
+  .bloom {
+    -webkit-mask-image: radial-gradient(
+      closest-side,
+      rgba(0, 0, 0, 1) 22%,
+      rgba(0, 0, 0, 0.55) 62%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    mask-image: radial-gradient(
+      closest-side,
+      rgba(0, 0, 0, 1) 22%,
+      rgba(0, 0, 0, 0.55) 62%,
+      rgba(0, 0, 0, 0) 100%
+    );
+  }
+
   .ambient {
     position: fixed;
     z-index: -1;
     pointer-events: none;
     border-radius: 9999px;
-    filter: blur(90px);
     opacity: 0.5;
   }
 

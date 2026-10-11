@@ -2,26 +2,54 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Flame, Maximize2, Pencil, Timer, Trash2 } from "lucide-react";
+import { Flame, Maximize2, Pause, Pencil, Timer, Trash2 } from "lucide-react";
 
-import { PRIORITY_META } from "@/lib/constants";
-import { formatRelative } from "@/lib/format";
+import { PRIORITY_META, modeMeta } from "@/lib/constants";
+import { formatClock, formatDuration, formatRelative } from "@/lib/format";
 import { EASE_OUT_EXPO, listItem, SPRING } from "@/lib/motion";
+import { toneForMode } from "@/lib/tone";
 import type { Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { startFocusForTask } from "@/lib/timer-actions";
+import { enterFocus, startFocusForTask } from "@/lib/timer-actions";
 import {
   deleteTaskWithFeedback,
   toggleTaskWithFeedback,
 } from "@/lib/task-actions";
+import { useTimerStore } from "@/store/use-timer-store";
 import { useUiStore } from "@/store/use-ui-store";
 
 export function TaskItem({ task }: { task: Task }) {
   const [pulse, setPulse] = useState(false);
   const selected = useUiStore((state) => state.selectedId === task.id);
   const select = useUiStore((state) => state.select);
-  const openFocus = useUiStore((state) => state.openFocus);
   const openEdit = useUiStore((state) => state.openEdit);
+
+  /*
+   * Does the clock belong to this row? Read as primitives, one subscription
+   * each, so a tick re-renders the linked row and nothing else: every selector
+   * returns the same value for every other row, which is what makes the list
+   * not re-render five times a second per task.
+   */
+  const isLinked = useTimerStore((state) => state.taskId === task.id);
+  const linkRunning = useTimerStore(
+    (state) => state.taskId === task.id && state.running,
+  );
+  const linkMode = useTimerStore((state) =>
+    state.taskId === task.id ? state.mode : null,
+  );
+  const linkPreset = useTimerStore((state) =>
+    state.taskId === task.id ? state.preset : null,
+  );
+  const linkClock = useTimerStore((state) =>
+    state.taskId === task.id ? formatClock(state.remainingMs) : "",
+  );
+
+  /* A completed task can't be what the clock is focused on — the actions layer
+   * releases that link — so the row only shows it while the task is active. */
+  const live = isLinked && !task.completed && linkMode !== null;
+  const linkTone = linkMode ? toneForMode(linkMode) : null;
+  const linkLabel =
+    linkMode && linkPreset ? modeMeta(linkPreset, linkMode).label : null;
 
   const priority = PRIORITY_META[task.priority];
 
@@ -39,6 +67,16 @@ export function TaskItem({ task }: { task: Task }) {
 
   function handleStartTimer() {
     useUiStore.getState().select(task.id);
+    /*
+     * When the clock already belongs to this row, the button pauses or resumes
+     * *that* session instead of asking for a new one. It used to call
+     * `startFocusForTask` unconditionally, and `start()` on a running clock
+     * returns early — so on the task being focused on, the button did nothing.
+     */
+    if (isLinked) {
+      useTimerStore.getState().toggle();
+      return;
+    }
     startFocusForTask(task.id);
   }
 
@@ -183,6 +221,35 @@ export function TaskItem({ task }: { task: Task }) {
           </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
+            {/* The live link, first in the line: this is the state that matters. */}
+            {live && linkTone && linkLabel && (
+              <span
+                role="img"
+                aria-label={`${linkLabel} ${
+                  linkRunning ? "running" : "paused"
+                } for this task`}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-1.5 py-0.5 font-mono text-[10px] tabular-nums",
+                  linkTone.hot
+                    ? "bg-primary/15 text-primary-soft"
+                    : "bg-ivory/10 text-ivory/85",
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    linkRunning && "animate-pulse-soft",
+                  )}
+                  style={{
+                    background: linkRunning
+                      ? linkTone.solid
+                      : "rgba(244,241,234,0.32)",
+                  }}
+                />
+                {linkLabel} · {linkClock}
+              </span>
+            )}
             {task.completed && task.completedAt ? (
               <span>Completed {formatRelative(task.completedAt)}</span>
             ) : (
@@ -192,6 +259,12 @@ export function TaskItem({ task }: { task: Task }) {
               <span className="flex items-center gap-1 text-achievement">
                 <Flame className="size-3" aria-hidden />
                 {task.pomodoros} {task.pomodoros === 1 ? "session" : "sessions"}
+              </span>
+            )}
+            {task.focusMinutes > 0 && (
+              <span className="flex items-center gap-1">
+                <Timer className="size-3" aria-hidden />
+                {formatDuration(task.focusMinutes)} focused
               </span>
             )}
             {task.tags.map((tag) => (
@@ -215,22 +288,29 @@ export function TaskItem({ task }: { task: Task }) {
                   event.stopPropagation();
                   handleStartTimer();
                 }}
-                className={actionClass}
-                aria-label={`Start a focus session for “${task.title}”`}
-                title="Start pomodoro"
+                className={cn(actionClass, isLinked && "text-primary-soft")}
+                aria-label={
+                  isLinked
+                    ? `${
+                        linkRunning ? "Pause" : "Resume"
+                      } the focus session for “${task.title}”`
+                    : `Start a focus session for “${task.title}”`
+                }
+                title={isLinked ? "Pause / resume session" : "Start pomodoro"}
               >
-                <Timer className="size-4" />
+                {linkRunning ? <Pause className="size-4" /> : <Timer className="size-4" />}
               </motion.button>
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.9 }}
                 onClick={(event) => {
                   event.stopPropagation();
-                  openFocus(task.id);
+                  /* Entering Focus Mode is the start: no second click. */
+                  enterFocus(task.id);
                 }}
                 className={cn(actionClass, "hover:text-primary-soft")}
                 aria-label={`Enter focus mode for “${task.title}”`}
-                title="Focus mode — F"
+                title="Focus mode — starts the session"
               >
                 <Maximize2 className="size-4" />
               </motion.button>

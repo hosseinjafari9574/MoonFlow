@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { filterTasks } from "@/lib/activity";
+import { enterFocus } from "@/lib/timer-actions";
 import { toggleTaskWithFeedback } from "@/lib/task-actions";
 import { useTodoStore } from "@/store/use-todo-store";
 import { useUiStore } from "@/store/use-ui-store";
@@ -87,7 +88,7 @@ export function useKeyboardShortcuts() {
           selected && !selected.completed
             ? selected
             : visible.find((task) => !task.completed) ?? null;
-        if (target) ui.openFocus(target.id);
+        if (target) enterFocus(target.id);
         else
           useUiStore
             .getState()

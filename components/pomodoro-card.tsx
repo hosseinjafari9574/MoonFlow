@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { getProgress } from "@/lib/timer-actions";
 import { useTodoStore } from "@/store/use-todo-store";
 import { useTimerStore } from "@/store/use-timer-store";
+import { useUiStore } from "@/store/use-ui-store";
 import { ProgressRing } from "@/components/progress-ring";
 import { Button } from "@/components/ui/button";
 
@@ -34,7 +35,13 @@ export function PomodoroCard() {
 
   const tasks = useTodoStore((state) => state.tasks);
   const activeTasks = tasks.filter((task) => !task.completed);
-  const linkedTask = tasks.find((task) => task.id === taskId) ?? null;
+  /*
+   * Only an active task can be what the clock is focused on — completing or
+   * deleting one releases the link — so a stored id that no longer matches an
+   * active task reads as no link at all, instead of as a `<select>` whose value
+   * is not among its own options.
+   */
+  const linkedTask = activeTasks.find((task) => task.id === taskId) ?? null;
   const reduceMotion = useReducedMotion();
 
   const [announcement, setAnnouncement] = useState("");
@@ -83,11 +90,16 @@ export function PomodoroCard() {
 
   return (
     <section className="panel relative overflow-hidden p-5" aria-label="Pomodoro timer">
-      {/* The room changes colour with the phase. */}
+      {/*
+       * The room changes colour with the phase. A masked bloom rather than
+       * `blur-[90px]`: this card sits inside the shell that scales on the way
+       * into Focus Mode, and a scaled ancestor re-rasterises a 90px blur on
+       * every frame of that move (see `.bloom` in globals.css).
+       */}
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute -right-24 -top-28 size-64 rounded-full blur-[90px] transition-all duration-1000",
+          "bloom pointer-events-none absolute -right-24 -top-28 size-64 rounded-full transition-colors duration-1000",
           isFocus ? "bg-primary/25" : "bg-ivory/10",
         )}
       />
@@ -354,10 +366,14 @@ export function PomodoroCard() {
         <div className="relative">
           <select
             id="timer-task"
-            value={taskId ?? ""}
-            onChange={(event) =>
-              useTimerStore.getState().setTaskId(event.target.value || null)
-            }
+            value={linkedTask?.id ?? ""}
+            onChange={(event) => {
+              const id = event.target.value || null;
+              useTimerStore.getState().setTaskId(id);
+              /* Picking the subject of the session selects its row, so the
+               * list and the card always name the same task. */
+              useUiStore.getState().select(id);
+            }}
             className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-hairline bg-white/[0.03] px-3 pr-9 text-caption text-foreground outline-none transition-colors duration-200 hover:border-white/15 focus-visible:border-primary/50"
           >
             <option value="">No task linked</option>

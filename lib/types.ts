@@ -34,6 +34,8 @@ export interface Task {
   completedAt: number | null;
   /** Pomodoro sessions completed against this task. */
   pomodoros: number;
+  /** Focus minutes banked against this task. */
+  focusMinutes: number;
 }
 
 export interface DayActivity {

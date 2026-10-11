@@ -27,9 +27,9 @@ function AmbientBackground() {
       className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
       aria-hidden
     >
-      <div className="ambient right-[-6%] top-[-160px] h-[520px] w-[520px] bg-primary/20" />
-      <div className="ambient bottom-[-210px] left-[4%] h-[460px] w-[460px] bg-ivory/[0.06]" />
-      <div className="ambient right-[-140px] top-[38%] h-72 w-72 bg-primary/10" />
+      <div className="ambient bloom right-[-6%] top-[-160px] h-[520px] w-[520px] bg-primary/20" />
+      <div className="ambient bloom bottom-[-210px] left-[4%] h-[460px] w-[460px] bg-ivory/[0.06]" />
+      <div className="ambient bloom right-[-140px] top-[38%] h-72 w-72 bg-primary/10" />
     </div>
   );
 }

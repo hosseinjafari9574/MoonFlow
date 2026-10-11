@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 
 import { PRIORITY_META } from "@/lib/constants";
-import { formatRelative } from "@/lib/format";
+import { formatDuration, formatRelative } from "@/lib/format";
 import type { Priority } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useTodoStore } from "@/store/use-todo-store";
@@ -155,6 +155,8 @@ export function EditTaskDialog() {
             <p className="text-caption text-muted-foreground">
               Added {formatRelative(task.createdAt)} ·{" "}
               {task.pomodoros} pomodoro{task.pomodoros === 1 ? "" : "s"} completed
+              {/* The time those sessions actually banked against this task. */}
+              {task.focusMinutes > 0 && ` · ${formatDuration(task.focusMinutes)} focused`}
               {task.completed && task.completedAt
                 ? ` · done ${formatRelative(task.completedAt)}`
                 : ""}

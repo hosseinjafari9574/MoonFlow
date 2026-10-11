@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, Pause, Play, RotateCcw, SkipForward, X } from "lucide-react";
 
-import { currentStreak, getDay } from "@/lib/activity";
+import { currentStreak, getDay, sortTasks } from "@/lib/activity";
 import { TIMER_PRESETS, modeMeta, presetBlurb } from "@/lib/constants";
 import { formatClock, formatDuration } from "@/lib/format";
 import {
@@ -124,6 +124,14 @@ export function FocusMode() {
   const sessionWord = presetMeta.sessionWord;
   const progress = getProgress(mode, remainingMs, preset);
   /*
+   * How much the halo's own gradient brightens as the session fills up.
+   *
+   * Quantised to 5% steps on purpose: this is a *style*, so a new value is a
+   * repaint, and `progress` changes on every 200ms tick — twenty-one steps over
+   * a whole session is invisible but saves ~750 repaints of a full-ring layer.
+   */
+  const haloGlow = 0.85 + (Math.round(progress * 20) / 20) * 0.3;
+  /*
    * A clock that has never run is *started*; a paused one is *resumed*. The
    * hand-off arms the next phase untouched, so it reads "Start" — calling it
    * "Resume" would claim the user had already begun a break they haven't.
@@ -175,12 +183,14 @@ export function FocusMode() {
   }, [open]);
 
   /*
-   * Keep the timer linked to the task being focused on — the *state* follows
-   * the overlay, the clock never does. Opening Focus Mode points the timer at
-   * the task and leaves it exactly as it was; running it stays the Start
-   * button's job. That is what keeps the automatic advance honest too: when
+   * Keep the timer linked to the task the overlay is showing.
+   *
+   * Entering Focus Mode by the user's own click starts the session itself
+   * (`enterFocus`), so this effect is about the *automatic* advance: when
    * completing a task moves the overlay to the next one, the next task arrives
-   * armed and untouched instead of already underway.
+   * linked and *armed* — pointed at, not underway. That is the one path that
+   * must not start a clock by itself, because a break that begins on its own is
+   * a break nobody took.
    */
   useEffect(() => {
     if (!focusTaskId) return;
@@ -278,6 +288,17 @@ export function FocusMode() {
       exit();
       return;
     }
+    /*
+     * Completing the task ends *its* session. The minutes it was given are
+     * banked where they were spent — before the completion releases the link,
+     * so they land on this task and not on the day alone — and the clock goes
+     * back to armed for whoever is next. That keeps two things true at once:
+     * the next task arrives with a whole session instead of the tail of the one
+     * that just finished, and nothing keeps running that the user did not ask
+     * for. A break is left alone: the task ending is not the pause ending.
+     */
+    const timer = useTimerStore.getState();
+    if (timer.mode === "focus") timer.reset();
     toggleTaskWithFeedback(task);
     setCelebrating(true);
     if (celebrationTimer.current) window.clearTimeout(celebrationTimer.current);
@@ -287,9 +308,17 @@ export function FocusMode() {
       const ui = useUiStore.getState();
       // The user may have left focus mode during the celebration.
       if (ui.focusTaskId !== task.id) return;
-      const nextTask = useTodoStore.getState().tasks.find(
-        (item) => item.id !== task.id && !item.completed,
-      );
+      /*
+       * "Next" means the next row the *list* would show: sorted the way it
+       * sorts, and inside the tag filter the user is looking through. This used
+       * to take the first open task in raw store order, which is the same thing
+       * only while no tag filter is set.
+       */
+      const todos = useTodoStore.getState().tasks;
+      const pool = ui.tagFilter
+        ? todos.filter((item) => item.tags.includes(ui.tagFilter as string))
+        : todos;
+      const nextTask = sortTasks(pool).find((item) => !item.completed);
       if (nextTask) ui.openFocus(nextTask.id);
       else ui.closeFocus();
     }, 1000);
@@ -378,7 +407,7 @@ export function FocusMode() {
 
           </motion.div>
 
-          {/* The push-in itself: specks and breathing rings, nothing expensive. */}
+          {/* The settle of the speck field — translate and fade, never a scale. */}
           <motion.div
             variants={focusLens}
             className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -566,22 +595,39 @@ export function FocusMode() {
                 transition={{ duration: 0.9, delay: 0.3, ease: EASE_OUT_EXPO }}
                 className="relative flex-none will-change-transform"
               >
-                {/* Halo that breathes while the timer runs and brightens with progress */}
+                {/*
+                 * Halo that breathes while the timer runs and brightens with
+                 * progress. Both of those are load-bearing details:
+                 *
+                 * 1. The breath is brightness only. It used to scale (1 →
+                 *    1.035), which left a forever-moving transform on a
+                 *    full-ring layer and resampled its gradient every frame,
+                 *    over a ring whose arc, comet head and graduations repaint
+                 *    every 200ms.
+                 * 2. Its animated targets are *constants*. They used to be
+                 *    built from `progress`, and a Framer target that changes
+                 *    restarts the animation — so on every 200ms tick the breath
+                 *    started over and never got anywhere: measured in the phone
+                 *    viewport, its opacity moved 0.500 → 0.504 across 4.5s while
+                 *    the CSS-driven ring beside it completed its whole 8s loop.
+                 *    That stutter around the ring is the shimmer the Android
+                 *    build showed. Progress moves into this element's own
+                 *    gradient instead — a style: a paint, never a restart.
+                 */}
                 <motion.div
                   aria-hidden
                   className="pointer-events-none absolute inset-3 rounded-full"
                   style={{
                     background: `radial-gradient(circle, rgba(${tone.rgb},${
-                      isFocus ? 0.3 : 0.2
-                    }), rgba(${tone.rgb},${isFocus ? 0.13 : 0.09}) 40%, transparent 74%)`,
+                      (isFocus ? 0.3 : 0.2) * haloGlow
+                    }), rgba(${tone.rgb},${
+                      (isFocus ? 0.13 : 0.09) * haloGlow
+                    }) 40%, transparent 74%)`,
                   }}
                   animate={
                     running && !reduceMotion
-                      ? {
-                          opacity: [0.5 + progress * 0.25, 0.9],
-                          scale: [1, 1.035],
-                        }
-                      : { opacity: 0.42 + progress * 0.3, scale: 1 }
+                      ? { opacity: [0.5, 0.95] }
+                      : { opacity: 0.42 + progress * 0.3 }
                   }
                   transition={
                     running && !reduceMotion

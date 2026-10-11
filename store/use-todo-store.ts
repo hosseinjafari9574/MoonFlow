@@ -22,8 +22,12 @@ interface TodoState {
 
   /** A focus session finished — count it overall + per task. */
   registerPomodoro: (taskId: string | null) => void;
-  /** Accrue (partial) focus minutes for today. */
-  addFocusMinutes: (minutes: number) => void;
+  /**
+   * Accrue (partial) focus minutes — to today, and to the task they were
+   * spent on when the clock is linked to one, so a task's minutes and its
+   * session count come from the same run of the clock.
+   */
+  addFocusMinutes: (minutes: number, taskId?: string | null) => void;
 
   setSoundEnabled: (enabled: boolean) => void;
 }
@@ -70,6 +74,7 @@ export const useTodoStore = create<TodoState>()(
           createdAt: Date.now(),
           completedAt: null,
           pomodoros: 0,
+          focusMinutes: 0,
         };
         set((state) => ({ tasks: [task, ...state.tasks] }));
         return task;
@@ -130,9 +135,16 @@ export const useTodoStore = create<TodoState>()(
           activity: bumpDay(state.activity, { pomodoros: 1 }),
         })),
 
-      addFocusMinutes: (minutes) => {
+      addFocusMinutes: (minutes, taskId = null) => {
         if (minutes <= 0) return;
         set((state) => ({
+          tasks: taskId
+            ? state.tasks.map((t) =>
+                t.id === taskId
+                  ? { ...t, focusMinutes: t.focusMinutes + minutes }
+                  : t,
+              )
+            : state.tasks,
           activity: bumpDay(state.activity, { focusMinutes: minutes }),
         }));
       },
