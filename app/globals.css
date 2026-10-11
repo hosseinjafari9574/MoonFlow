@@ -1,0 +1,352 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ---------------------------------------------------------------------------
+   MoonFlow — "Graphite & Ivory"
+   Warm graphite surfaces, ivory type, one electric accent. Colour is a
+   signal, not decoration: focus is the only colourful state in the app.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-background: #0a0a0b;
+  --color-foreground: #f2efe9;
+
+  --color-card: #131316;
+  --color-card-foreground: #f2efe9;
+
+  --color-popover: #17171a;
+  --color-popover-foreground: #f2efe9;
+
+  /* The single accent — live, active, in-progress. */
+  --color-primary: #4b62ff;
+  --color-primary-foreground: #ffffff;
+  --color-primary-soft: #8b99ff;
+
+  --color-secondary: #17171a;
+  --color-secondary-foreground: #c9c5bd;
+
+  --color-muted: #141416;
+  --color-muted-foreground: #918e87;
+
+  --color-accent: #1e1e22;
+  --color-accent-foreground: #f2efe9;
+
+  --color-destructive: #e5604d;
+  --color-destructive-foreground: #ffffff;
+
+  /* Achievements only: streaks, completed cycles. */
+  --color-achievement: #e9b872;
+
+  /* The break phase + "done" affordances drain to ivory. */
+  --color-ivory: #e8e2d6;
+
+  --color-border: rgba(244, 241, 234, 0.09);
+  --color-hairline: rgba(244, 241, 234, 0.075);
+  --color-input: rgba(244, 241, 234, 0.12);
+  --color-ring: #4b62ff;
+
+  --color-surface: rgba(244, 241, 234, 0.04);
+  --color-surface-1: #131316;
+  --color-surface-2: #17171a;
+  --color-surface-3: #1e1e22;
+
+  --font-sans: var(--font-inter, "Segoe UI"), ui-sans-serif, system-ui,
+    -apple-system, Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono, ui-monospace), ui-monospace,
+    SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* A real type scale, so sizes stop drifting between components. */
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --text-micro--letter-spacing: 0.14em;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.1rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.35rem;
+  --text-title: 1.125rem;
+  --text-title--line-height: 1.5rem;
+  --text-display: 2.5rem;
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -0.03em;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: #08080a;
+    background-image: linear-gradient(180deg, #0d0d10 0%, #08080a 70%);
+    background-attachment: fixed;
+    color: var(--color-foreground);
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(75, 98, 255, 0.32);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(244, 241, 234, 0.14) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(244, 241, 234, 0.1);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(244, 241, 234, 0.22);
+    background-clip: padding-box;
+  }
+}
+
+@layer components {
+  /* Matte, layered surfaces — no glass, no mud. */
+  .panel {
+    position: relative;
+    border: 1px solid transparent;
+    border-radius: 1.25rem;
+    background:
+      linear-gradient(180deg, #131316 0%, #101013 100%) padding-box,
+      linear-gradient(
+          180deg,
+          rgba(244, 241, 234, 0.13),
+          rgba(244, 241, 234, 0.035)
+        )
+        border-box;
+    box-shadow:
+      inset 0 1px 0 rgba(244, 241, 234, 0.045),
+      0 1px 1px rgba(0, 0, 0, 0.55),
+      0 34px 64px -48px rgba(0, 0, 0, 1);
+  }
+
+  /* Nested well inside a panel. */
+  .inset {
+    border-radius: 0.875rem;
+    background: rgba(244, 241, 234, 0.035);
+    box-shadow: inset 0 0 0 1px rgba(244, 241, 234, 0.055);
+  }
+
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding: 0 0.4rem;
+    /* Centre the label by layout, not by flex alignment: the line box is exactly the
+       content box (1.4rem less the 1px borders), so the glyph sits at the same height
+       however the badge is displayed. Badges carrying a responsive `hidden sm:inline`
+       inside a flex row get blockified to `display: block` — Tailwind's utilities
+       outrank this component class — which used to drop the flex centring and leave
+       the label riding about 6px high in the cap. */
+    line-height: calc(1.4rem - 2px);
+    border: 1px solid rgba(244, 241, 234, 0.14);
+    border-radius: 0.45rem;
+    background: rgba(244, 241, 234, 0.055);
+    color: rgba(242, 239, 233, 0.72);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+  }
+
+  /* 1px fading rule — used instead of flat borders. */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      rgba(244, 241, 234, 0) 0%,
+      rgba(244, 241, 234, 0.14) 45%,
+      rgba(244, 241, 234, 0) 100%
+    );
+  }
+
+  .ambient {
+    position: fixed;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 9999px;
+    filter: blur(90px);
+    opacity: 0.5;
+  }
+
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: rgba(244, 241, 234, 0.05);
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(244, 241, 234, 0.07),
+      transparent
+    );
+    animation: shimmer 1.7s ease-in-out infinite;
+  }
+
+  .dot-grid {
+    background-image: radial-gradient(
+      rgba(244, 241, 234, 0.09) 1px,
+      transparent 1px
+    );
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 75%);
+  }
+
+  /*
+   * Filmic noise — keeps big dark surfaces from banding.
+   *
+   * An inline `feTurbulence` filter, so Skia re-runs the noise every time either
+   * grain layer is rastered. Pre-baking the tile to a PNG was implemented and
+   * measured (`.freebuff/perf-focus.mjs --entryBisect --grainBisect`, same
+   * session, alternating): neutral — p95 identical, dropped-frame count inside
+   * the noise. The grain is a first-paint cost, not a per-frame one, so the
+   * filter stays and the 70 KiB asset stays unshipped. See docs/motion-budget.md.
+   */
+  .grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 140px 140px;
+  }
+
+  .glow-accent {
+    text-shadow: 0 0 32px rgba(75, 98, 255, 0.55);
+  }
+
+  .glow-ivory {
+    text-shadow: 0 0 32px rgba(232, 226, 214, 0.45);
+  }
+
+  /*
+   * Drifting aurora blobs — compositor-only, no JS loop. The drift is a pure
+   * translate on purpose: these layers carry a 130–150px blur, and a transform
+   * *scale* would force Chrome to re-raster the blur on every frame (measured:
+   * ~30% of frames dropped). `will-change` keeps each blob on its own layer.
+   */
+  .drift-a {
+    animation: drift-a 46s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+
+  .drift-b {
+    animation: drift-b 58s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+
+  /* Ambient specks for the focus overlay. */
+  .float-up {
+    animation: float-up var(--float-duration, 14s) linear
+      var(--float-delay, 0s) infinite;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(0.98);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.9;
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes drift-a {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-46px, 34px, 0);
+  }
+}
+
+@keyframes drift-b {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(38px, -30px, 0);
+  }
+}
+
+@keyframes float-up {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), -96px, 0);
+    opacity: 0;
+  }
+}
+
+.animate-breathe {
+  animation: breathe 8s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

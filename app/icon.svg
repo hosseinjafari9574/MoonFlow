@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" width="24" height="24">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#1a1a1f" />
+      <stop offset="1" stop-color="#0b0b0d" />
+    </linearGradient>
+    <mask id="moon">
+      <rect width="24" height="24" fill="#000" />
+      <circle cx="11.2" cy="11.8" r="5" fill="#fff" />
+      <circle cx="14.02" cy="9.69" r="5" fill="#000" />
+    </mask>
+  </defs>
+  <!-- Graphite tile so the mark reads on light *and* dark browser chrome. -->
+  <rect width="24" height="24" rx="5.2" fill="url(#tile)" />
+  <rect x="0.5" y="0.5" width="23" height="23" rx="4.8" fill="none" stroke="#f4f1ea" stroke-opacity="0.10" />
+  <!-- Dial inset to 9.0 here (9.4 in-app) so the stroke keeps a real margin at 16px. -->
+  <circle cx="12" cy="12" r="9" stroke="#e8e2d6" stroke-opacity="0.24" stroke-width="2.4" />
+  <path d="M12 3 A 9 9 0 0 1 19.71 16.64" stroke="#e8e2d6" stroke-width="2.4" stroke-linecap="round" />
+  <circle cx="11.2" cy="11.8" r="5" fill="#e8e2d6" mask="url(#moon)" />
+  <circle cx="12" cy="3" r="1.5" fill="#8b99ff" />
+</svg>

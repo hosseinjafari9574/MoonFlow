@@ -1,0 +1,101 @@
+{
+  "note": "window off screen at -32000,-32000",
+  "controls": {
+    "calibration": {
+      "phase": "calibration",
+      "frames": 58,
+      "fps": 47.5,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 233.4,
+      "over20": 2,
+      "over33": 2,
+      "over50": 1,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "list": {
+      "phase": "list",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.7,
+      "maxMs": 16.8,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "listPaused": {
+      "phase": "listPaused",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.9,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    }
+  },
+  "focus": {
+    "longTitleTaskCreated": true,
+    "entry": {
+      "phase": "entry",
+      "frames": 122,
+      "fps": 48.4,
+      "medianMs": 16.7,
+      "p95Ms": 33.4,
+      "maxMs": 250,
+      "over20": 11,
+      "over33": 11,
+      "over50": 3,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "idle": {
+      "phase": "idle",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.8,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "exit": {
+      "phase": "exit",
+      "frames": 73,
+      "fps": 52.7,
+      "medianMs": 16.7,
+      "p95Ms": 33.3,
+      "maxMs": 50.1,
+      "over20": 9,
+      "over33": 9,
+      "over50": 1,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    }
+  },
+  "bisect": null,
+  "render": {
+    "layoutCountTotal": 114,
+    "recalcStyleCountTotal": 246,
+    "layoutDurationMsTotal": 0.24,
+    "scriptDurationMsTotal": 0.56
+  },
+  "overlayRemovedAfterExit": true,
+  "hidden": false
+}

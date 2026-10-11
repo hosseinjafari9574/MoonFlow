@@ -1,0 +1,12 @@
+
+> magic-todo@1.0.0 start
+> next start -p 3100
+
+   ▲ Next.js 15.5.26
+   - Local:        http://localhost:3100
+   - Network:      http://10.138.212.62:3100
+
+ ✓ Starting...
+ ✓ Ready in 1260ms
+(node:13052) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)

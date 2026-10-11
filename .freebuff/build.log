@@ -1,0 +1,56 @@
+
+> magic-todo@1.0.0 build
+> next build
+
+   ▲ Next.js 15.5.26
+
+   Creating an optimized production build ...
+00060000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 70
+
+
+Retrying 1/3...
+00060000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 70
+
+
+Retrying 1/3...
+00060000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 70
+
+
+Retrying 1/3...
+00060000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 70
+
+
+Retrying 1/3...
+24330000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 70
+
+
+Retrying 1/3...
+24330000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 70
+
+
+Retrying 1/3...
+ ✓ Compiled successfully in 20.3s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/5) ...
+(node:4440) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+   Generating static pages (1/5) 
+   Generating static pages (2/5) 
+   Generating static pages (3/5) 
+ ✓ Generating static pages (5/5)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                    91.2 kB         194 kB
+├ ○ /_not-found                            993 B         104 kB
+└ ○ /icon.svg                                0 B            0 B
++ First Load JS shared by all             103 kB
+  ├ chunks/255-2dbbf79f36f0dfa2.js       46.4 kB
+  ├ chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB
+  └ other shared chunks (total)          1.97 kB
+
+
+○  (Static)  prerendered as static content
+

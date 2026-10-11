@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MoonFlow — three marks, side by side</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#0a0a0b; --card:#131316; --fg:#f2efe9; --ivory:#e8e2d6; --muted:#918e87; --hairline:rgba(244,241,234,0.09); }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:Inter,system-ui,sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(620px 620px at 80% -10%,rgba(75,98,255,.14),transparent 70%); }
+  main { position:relative; z-index:1; max-width:1040px; margin:0 auto; padding:52px 24px 96px; }
+  h1 { font-size:32px; letter-spacing:-.024em; font-weight:600; margin:0 0 10px; line-height:1.15; }
+  .eyebrow { font-family:"Geist Mono",ui-monospace,monospace; font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); margin:0 0 12px; }
+  p { color:#cfcbc2; max-width:70ch; margin:0 0 12px; }
+  p.big { font-size:17px; color:var(--fg); }
+  .three { display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); margin:34px 0 26px; }
+  .card { border:1px solid var(--hairline); border-radius:20px; padding:26px 22px 22px; text-align:center;
+    background:linear-gradient(170deg,rgba(255,255,255,.04),rgba(255,255,255,.008) 46%,rgba(0,0,0,.22));
+    box-shadow:0 46px 90px -66px rgba(0,0,0,1); }
+  .card.rec { border-color:rgba(139,153,255,.24); }
+  .card h2 { font-size:16px; font-weight:600; letter-spacing:-.01em; margin:0 0 4px; }
+  .card .sub { font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); margin:0 0 22px; }
+  .card.rec .sub { color:#8b99ff; }
+  .stage { display:grid; place-items:center; min-height:172px; }
+  .sizerow { display:flex; align-items:flex-end; justify-content:center; gap:22px; margin:26px 0 6px; }
+  .sizerow figure { margin:0; display:grid; gap:9px; justify-items:center; }
+  .sizerow figcaption { font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; color:var(--muted); }
+  .tile { display:grid; place-items:center; border-radius:12px; color:var(--ivory);
+    background-image:linear-gradient(160deg,rgba(75,98,255,.28),rgba(75,98,255,.06));
+    box-shadow:inset 0 0 0 1px rgba(139,153,255,.28),0 10px 26px -14px rgba(75,98,255,.9); }
+  .note { border-top:1px solid var(--hairline); margin-top:22px; padding-top:16px; text-align:left; font-size:14.5px; color:#c6c2b9; }
+  .note b { color:var(--ivory); font-weight:500; }
+  section.header-mock { border:1px solid var(--hairline); border-radius:20px; padding:0 20px; margin:0 0 26px; background:rgba(11,11,14,.6); }
+  .bar { display:flex; align-items:center; gap:12px; height:64px; }
+  .bar .tile { width:40px; height:40px; border-radius:12px; }
+  .bar .wm { font-size:15px; font-weight:600; letter-spacing:-.01em; }
+  .bar .dt { font-family:"Geist Mono",ui-monospace,monospace; font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  .bar + .bar { border-top:1px solid var(--hairline); }
+  .bar code { font-family:"Geist Mono",ui-monospace,monospace; font-size:10px; color:var(--muted); margin-left:auto; }
+  h3 { font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); font-weight:600; margin:38px 0 14px; font-family:"Geist Mono",ui-monospace,monospace; }
+  footer { color:var(--muted); font-size:13px; margin-top:34px; }
+</style>
+</head>
+<body>
+<!-- Every mark is defined once and reused, so all sizes are the same geometry. -->
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <mask id="maskA">
+      <rect width="24" height="24" fill="#000" />
+      <circle cx="8.44" cy="15.79" r="3.4" fill="#fff" />
+      <circle cx="9.95" cy="14.21" r="3.4" fill="#000" />
+    </mask>
+    <mask id="maskC">
+      <rect width="24" height="24" fill="#000" />
+      <circle cx="11.2" cy="11.8" r="5.2" fill="#fff" />
+      <circle cx="14.15" cy="9.6" r="5.2" fill="#000" />
+    </mask>
+    <mask id="maskB">
+      <rect width="24" height="24" fill="#000" />
+      <circle cx="10.6" cy="12.6" r="9.4" fill="#fff" />
+      <circle cx="15.9" cy="9.4" r="9.4" fill="#000" />
+    </mask>
+
+    <!-- A: moon at the session's tip. -->
+    <symbol id="markA" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.6" stroke="#e8e2d6" stroke-opacity="0.2" stroke-width="2.2" fill="none" />
+      <path d="M12 3.4 A 8.6 8.6 0 1 1 6.11 18.27" stroke="#e8e2d6" stroke-width="2.2" stroke-linecap="round" fill="none" />
+      <circle cx="8.44" cy="15.79" r="3.4" fill="#e8e2d6" mask="url(#maskA)" />
+      <circle cx="12" cy="3.4" r="1.55" fill="#8b99ff" />
+    </symbol>
+
+    <!-- B: one bold crescent, no dial. -->
+    <symbol id="markB" viewBox="0 0 24 24">
+      <circle cx="10.6" cy="12.6" r="9.4" fill="#e8e2d6" mask="url(#maskB)" />
+      <path d="M17.2 17.4 A 6.4 6.4 0 0 0 12.4 7.4" stroke="#e8e2d6" stroke-opacity="0.45" stroke-width="1.5" stroke-linecap="round" fill="none" />
+      <circle cx="19.4" cy="4.6" r="1.7" fill="#8b99ff" />
+    </symbol>
+
+    <!-- C: centred moon, scaled up. -->
+    <symbol id="markC" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9.4" stroke="#e8e2d6" stroke-opacity="0.22" stroke-width="2.3" fill="none" />
+      <path d="M12 2.6 A 9.4 9.4 0 0 1 20.15 16.78" stroke="#e8e2d6" stroke-width="2.3" stroke-linecap="round" fill="none" />
+      <circle cx="11.2" cy="11.8" r="5.2" fill="#e8e2d6" mask="url(#maskC)" />
+      <circle cx="12" cy="2.6" r="1.5" fill="#8b99ff" />
+    </symbol>
+  </defs>
+</svg>
+
+<main>
+  <p class="eyebrow">MoonFlow · pick one</p>
+  <h1>Three marks, same size</h1>
+  <p class="big">Big enough to judge the composition — then the same three at the sizes they actually render.</p>
+  <p>
+    All three use the full 24-unit grid and the same palette, so you are choosing a
+    composition, not a colour. <b>A</b> is what the app is running right now.
+  </p>
+
+  <div class="three">
+    <div class="card rec">
+      <h2>A · Moon at the tip</h2>
+      <p class="sub">In the app now</p>
+      <div class="stage"><svg width="150" height="150" viewBox="0 0 24 24" aria-label="A mark"><use href="#markA" /></svg></div>
+      <div class="sizerow">
+        <figure><svg width="40" height="40" viewBox="0 0 24 24"><use href="#markA" /></svg><figcaption>40px</figcaption></figure>
+        <figure><div class="tile" style="width:40px;height:40px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#markA" /></svg></div><figcaption>tile</figcaption></figure>
+        <figure><svg width="16" height="16" viewBox="0 0 24 24"><use href="#markA" /></svg><figcaption>16px</figcaption></figure>
+      </div>
+      <div class="note"><b>The moon marks where you are</b> — it rests at the exact point the session arc stops, so it doubles as the progress marker. The middle stays clear, which is what lets the dial grow.</div>
+    </div>
+
+    <div class="card">
+      <h2>B · Bold crescent</h2>
+      <p class="sub">No dial</p>
+      <div class="stage"><svg width="150" height="150" viewBox="0 0 24 24" aria-label="B mark"><use href="#markB" /></svg></div>
+      <div class="sizerow">
+        <figure><svg width="40" height="40" viewBox="0 0 24 24"><use href="#markB" /></svg><figcaption>40px</figcaption></figure>
+        <figure><div class="tile" style="width:40px;height:40px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#markB" /></svg></div><figcaption>tile</figcaption></figure>
+        <figure><svg width="16" height="16" viewBox="0 0 24 24"><use href="#markB" /></svg><figcaption>16px</figcaption></figure>
+      </div>
+      <div class="note"><b>Most legible tiny, least "timer".</b> One big crescent survives any size, but it reads as a night or sleep app — the dial is what says "sessions".</div>
+    </div>
+
+    <div class="card">
+      <h2>C · Centred moon</h2>
+      <p class="sub">Your original, bigger</p>
+      <div class="stage"><svg width="150" height="150" viewBox="0 0 24 24" aria-label="C mark"><use href="#markC" /></svg></div>
+      <div class="sizerow">
+        <figure><svg width="40" height="40" viewBox="0 0 24 24"><use href="#markC" /></svg><figcaption>40px</figcaption></figure>
+        <figure><div class="tile" style="width:40px;height:40px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#markC" /></svg></div><figcaption>tile</figcaption></figure>
+        <figure><svg width="16" height="16" viewBox="0 0 24 24"><use href="#markC" /></svg><figcaption>16px</figcaption></figure>
+      </div>
+      <div class="note"><b>Familiar, symmetric, expensive.</b> Same moon, same place, just filling the canvas — but the occupied middle is what keeps the ring small and makes 16px crowded.</div>
+    </div>
+  </div>
+
+  <h3>In the real header (top row is 40px tile + wordmark)</h3>
+  <section class="header-mock">
+    <div class="bar">
+      <span class="tile"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#markA" /></svg></span>
+      <div><div class="wm">MoonFlow</div><div class="dt">Wednesday, October 7</div></div>
+      <code>A</code>
+    </div>
+    <div class="bar">
+      <span class="tile"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#markB" /></svg></span>
+      <div><div class="wm">MoonFlow</div><div class="dt">Wednesday, October 7</div></div>
+      <code>B</code>
+    </div>
+    <div class="bar">
+      <span class="tile"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#markC" /></svg></span>
+      <div><div class="wm">MoonFlow</div><div class="dt">Wednesday, October 7</div></div>
+      <code>C</code>
+    </div>
+  </section>
+
+  <footer>
+    Same geometry as the app and the favicon. Tell me a letter and I'll wire it in — or delete this page if you'd rather keep A.
+  </footer>
+</main>
+</body>
+</html>

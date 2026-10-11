@@ -1,0 +1,179 @@
+{
+  "note": "window off screen at -32000,-32000",
+  "controls": {
+    "calibration": {
+      "phase": "calibration",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 17.5,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "list": {
+      "phase": "list",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 21.9,
+      "over20": 1,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "listPaused": {
+      "phase": "listPaused",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.9,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    }
+  },
+  "focus": {
+    "longTitleTaskCreated": true,
+    "entry": {
+      "phase": "entryAll",
+      "frames": 72,
+      "fps": 31.8,
+      "medianMs": 16.8,
+      "p95Ms": 83.4,
+      "maxMs": 100,
+      "over20": 34,
+      "over33": 34,
+      "over50": 7,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "idle": {
+      "phase": "idle",
+      "frames": 72,
+      "fps": 59.2,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 33.4,
+      "over20": 1,
+      "over33": 1,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "exit": {
+      "phase": "exit",
+      "frames": 61,
+      "fps": 42.9,
+      "medianMs": 16.7,
+      "p95Ms": 66.7,
+      "maxMs": 83.3,
+      "over20": 11,
+      "over33": 11,
+      "over50": 6,
+      "longTasks": 1,
+      "longTaskTotalMs": 50,
+      "cls": 0
+    }
+  },
+  "bisect": {
+    "paused": {
+      "drift": 2,
+      "breathe": 0
+    },
+    "hidden": 1,
+    "entryAll": {
+      "phase": "entryAll",
+      "frames": 72,
+      "fps": 31.8,
+      "medianMs": 16.8,
+      "p95Ms": 83.4,
+      "maxMs": 100,
+      "over20": 34,
+      "over33": 34,
+      "over50": 7,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "idleAll": {
+      "phase": "idleAll",
+      "frames": 46,
+      "fps": 45.8,
+      "medianMs": 16.7,
+      "p95Ms": 33.3,
+      "maxMs": 33.4,
+      "over20": 14,
+      "over33": 14,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "idleDriftPaused": {
+      "phase": "idleDriftPaused",
+      "frames": 41,
+      "fps": 40.7,
+      "medianMs": 16.8,
+      "p95Ms": 33.4,
+      "maxMs": 33.4,
+      "over20": 19,
+      "over33": 19,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "idleAuroraHidden": {
+      "phase": "idleAuroraHidden",
+      "frames": 47,
+      "fps": 46.8,
+      "medianMs": 16.7,
+      "p95Ms": 33.4,
+      "maxMs": 33.4,
+      "over20": 13,
+      "over33": 13,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "entryDriftPaused": null,
+    "hiddenSecondPass": 1,
+    "entryNoBlur": {
+      "phase": "entryNoBlur",
+      "frames": 109,
+      "fps": 45.3,
+      "medianMs": 16.7,
+      "p95Ms": 50,
+      "maxMs": 83.2,
+      "over20": 23,
+      "over33": 22,
+      "over50": 5,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    }
+  },
+  "render": {
+    "layoutCountTotal": 319,
+    "recalcStyleCountTotal": 545,
+    "layoutDurationMsTotal": 0.34,
+    "scriptDurationMsTotal": 1.13
+  },
+  "overlayRemovedAfterExit": true,
+  "hidden": false
+}

@@ -1,0 +1,6 @@
+Warning: Detected unsettled top-level await at file:///D:/MyAIProjects/01_freebuff/Magic%20ToDo/.freebuff/perf-focus.mjs:554
+  const exit = traceExit?.sample ?? (await (async () => {
+                                     ^
+
+
+

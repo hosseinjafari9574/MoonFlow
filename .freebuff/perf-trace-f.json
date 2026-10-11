@@ -1,0 +1,985 @@
+{
+  "note": "window off screen at -32000,-32000",
+  "controls": {
+    "calibration": {
+      "phase": "calibration",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.9,
+      "maxMs": 20.2,
+      "over20": 1,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 3,
+      "slowFramesAtMs": []
+    },
+    "list": {
+      "phase": "list",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.8,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 10,
+      "slowFramesAtMs": []
+    },
+    "listPaused": {
+      "phase": "listPaused",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 17.5,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 2,
+      "slowFramesAtMs": []
+    }
+  },
+  "focus": {
+    "longTitleTaskCreated": true,
+    "entry": {
+      "phase": "entryTraced",
+      "frames": 121,
+      "fps": 46.2,
+      "medianMs": 16.7,
+      "p95Ms": 49.9,
+      "maxMs": 233.3,
+      "over20": 13,
+      "over33": 13,
+      "over50": 3,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 9,
+      "slowFramesAtMs": [
+        125,
+        359,
+        425,
+        475,
+        525,
+        575,
+        609,
+        642,
+        692,
+        742,
+        809,
+        942,
+        992
+      ]
+    },
+    "idle": {
+      "phase": "idle",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.8,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 7,
+      "slowFramesAtMs": []
+    },
+    "exit": {
+      "phase": "exitTraced",
+      "frames": 84,
+      "fps": 52.4,
+      "medianMs": 16.7,
+      "p95Ms": 33.4,
+      "maxMs": 50.2,
+      "over20": 9,
+      "over33": 9,
+      "over50": 2,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 18,
+      "slowFramesAtMs": [
+        68,
+        118,
+        151,
+        185,
+        235,
+        268,
+        301,
+        351,
+        401
+      ]
+    }
+  },
+  "bisect": null,
+  "trace": {
+    "eventCount": 34488,
+    "threadTimeMs": {
+      "js": 329,
+      "style": 131,
+      "layout": 189,
+      "paint": 307,
+      "raster": 178,
+      "composite": 809
+    },
+    "worstCall": {
+      "ts": 50717144945,
+      "endTs": 50717145060,
+      "durMs": 0.1,
+      "functionName": "tick",
+      "url": "",
+      "scriptId": "3",
+      "lineNumber": 3,
+      "columnNumber": 16,
+      "scriptLines": 12,
+      "sourceLine": "requestAnimationFrame(tick);",
+      "context": [
+        "window.__perf = { frames: [], long: [], shifts: [], phase: 'idle' };",
+        "const tick = (t) => { window.__perf.frames.push([window.__perf.phase, t]); requestAnimationFrame(tick); };",
+        "requestAnimationFrame(tick);",
+        "new PerformanceObserver((list) => {",
+        "for (const e of list.getEntries()) window.__perf.long.push({ start: e.startTime, dur: e.duration });"
+      ]
+    },
+    "insideWorstCall": [],
+    "overlappingWorstCall": [],
+    "topJs": [
+      {
+        "name": "(anonymous)",
+        "count": 836,
+        "totalMs": 508.4,
+        "maxMs": 72.7
+      },
+      {
+        "name": "http://localhost:3100/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",
+        "count": 36,
+        "totalMs": 142.1,
+        "maxMs": 63
+      },
+      {
+        "name": "f",
+        "count": 140,
+        "totalMs": 123.7,
+        "maxMs": 9.1
+      },
+      {
+        "name": "a",
+        "count": 14,
+        "totalMs": 6.5,
+        "maxMs": 2.9
+      },
+      {
+        "name": "w",
+        "count": 16,
+        "totalMs": 2,
+        "maxMs": 1.3
+      },
+      {
+        "name": "tick",
+        "count": 126,
+        "totalMs": 12.7,
+        "maxMs": 0.9
+      },
+      {
+        "name": "l",
+        "count": 1,
+        "totalMs": 0.8,
+        "maxMs": 0.8
+      },
+      {
+        "name": "cs",
+        "count": 28,
+        "totalMs": 2.6,
+        "maxMs": 0.6
+      },
+      {
+        "name": "PerformanceObserver.observe.type",
+        "count": 2,
+        "totalMs": 0.5,
+        "maxMs": 0.5
+      },
+      {
+        "name": "s",
+        "count": 1,
+        "totalMs": 0.5,
+        "maxMs": 0.5
+      },
+      {
+        "name": "ci",
+        "count": 14,
+        "totalMs": 1.1,
+        "maxMs": 0.4
+      },
+      {
+        "name": "cc",
+        "count": 268,
+        "totalMs": 7.3,
+        "maxMs": 0.4
+      }
+    ],
+    "timerFireAtMs": [
+      138,
+      247,
+      448,
+      653,
+      857,
+      1047,
+      1191,
+      1244,
+      1448,
+      1649,
+      1855,
+      2055,
+      2255,
+      2443,
+      2644
+    ],
+    "byName": [
+      {
+        "name": "ProxyMain::BeginMainFrame",
+        "count": 126,
+        "totalMs": 678.2,
+        "maxMs": 22.2
+      },
+      {
+        "name": "v8.callFunction",
+        "count": 836,
+        "totalMs": 508.4,
+        "maxMs": 72.7
+      },
+      {
+        "name": "Graphics.Pipeline",
+        "count": 1663,
+        "totalMs": 352.8,
+        "maxMs": 3.3
+      },
+      {
+        "name": "FunctionCall",
+        "count": 831,
+        "totalMs": 306.3,
+        "maxMs": 63
+      },
+      {
+        "name": "LocalFrameView::RunPaintLifecyclePhase",
+        "count": 128,
+        "totalMs": 251.9,
+        "maxMs": 3.3
+      },
+      {
+        "name": "RasterizerTaskImpl::RunOnWorkerThread",
+        "count": 975,
+        "totalMs": 177.8,
+        "maxMs": 6.7
+      },
+      {
+        "name": "RasterTask",
+        "count": 975,
+        "totalMs": 169.1,
+        "maxMs": 6.7
+      },
+      {
+        "name": "GpuRasterBuffer::Playback",
+        "count": 975,
+        "totalMs": 161.6,
+        "maxMs": 6.7
+      },
+      {
+        "name": "Layerize",
+        "count": 126,
+        "totalMs": 132.8,
+        "maxMs": 1.7
+      },
+      {
+        "name": "ProxyImpl::ScheduledActionDraw",
+        "count": 131,
+        "totalMs": 131.5,
+        "maxMs": 3.7
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "count": 166,
+        "totalMs": 131.5,
+        "maxMs": 13.4
+      },
+      {
+        "name": "MainFrame.Draw",
+        "count": 131,
+        "totalMs": 130.6,
+        "maxMs": 3.7
+      },
+      {
+        "name": "ProxyImpl::ReadyToCommit",
+        "count": 125,
+        "totalMs": 126.2,
+        "maxMs": 2.2
+      },
+      {
+        "name": "TimerFire",
+        "count": 15,
+        "totalMs": 118,
+        "maxMs": 19.1
+      },
+      {
+        "name": "FireAnimationFrame",
+        "count": 250,
+        "totalMs": 108.7,
+        "maxMs": 6.1
+      },
+      {
+        "name": "LocalFrameView::RunStyleAndLayoutLifecyclePhases",
+        "count": 172,
+        "totalMs": 105.9,
+        "maxMs": 4.6
+      },
+      {
+        "name": "Paint",
+        "count": 412,
+        "totalMs": 105.7,
+        "maxMs": 1.3
+      },
+      {
+        "name": "LayerTreeHostImpl::CommitComplete",
+        "count": 154,
+        "totalMs": 99.1,
+        "maxMs": 1.6
+      },
+      {
+        "name": "EventDispatch",
+        "count": 173,
+        "totalMs": 95.8,
+        "maxMs": 72.8
+      },
+      {
+        "name": "LatencyInfo.Flow",
+        "count": 18,
+        "totalMs": 90.8,
+        "maxMs": 76.9
+      },
+      {
+        "name": "WidgetBaseInputHandler::OnHandleInputEvent",
+        "count": 3,
+        "totalMs": 90.5,
+        "maxMs": 76.9
+      },
+      {
+        "name": "LayerTreeImpl::UpdateDrawProperties",
+        "count": 289,
+        "totalMs": 57.7,
+        "maxMs": 0.6
+      },
+      {
+        "name": "auto cc::LayerTreeHostImpl::PrepareTiles()::(lambda)::operator()()::(lambda)::operator()(uint32_t) const",
+        "count": 181,
+        "totalMs": 55.1,
+        "maxMs": 1.2
+      },
+      {
+        "name": "PrePaint",
+        "count": 172,
+        "totalMs": 54.7,
+        "maxMs": 1.2
+      },
+      {
+        "name": "TileManager::CheckForCompletedTasksAndIssueSignals",
+        "count": 340,
+        "totalMs": 54.4,
+        "maxMs": 1.3
+      },
+      {
+        "name": "LayerTreeHostImpl::PrepareToDraw",
+        "count": 160,
+        "totalMs": 54.3,
+        "maxMs": 1
+      },
+      {
+        "name": "auto cc::TileManager::PrepareTiles(const GlobalStateThatImpactsTilePriority &)::(lambda)::operator()()::(lambda)::operator()(uint32_t) const",
+        "count": 181,
+        "totalMs": 53.8,
+        "maxMs": 1.2
+      },
+      {
+        "name": "TileManager::PrepareTiles",
+        "count": 181,
+        "totalMs": 52.9,
+        "maxMs": 1.1
+      },
+      {
+        "name": "DirectRenderer::DrawFrame",
+        "count": 131,
+        "totalMs": 49.6,
+        "maxMs": 1.1
+      },
+      {
+        "name": "AnimationHost::TickAnimations",
+        "count": 489,
+        "totalMs": 49.1,
+        "maxMs": 0.6
+      }
+    ],
+    "paintByNode": [
+      {
+        "name": "Paint",
+        "nodeId": 2,
+        "count": 125,
+        "totalMs": 73.6,
+        "maxMs": 1.3,
+        "node": "<node 2 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 67,
+        "count": 42,
+        "totalMs": 10.6,
+        "maxMs": 0.7,
+        "node": "<node 67 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 82,
+        "count": 95,
+        "totalMs": 8.1,
+        "maxMs": 0.2,
+        "node": "<node 82 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 76,
+        "count": 73,
+        "totalMs": 5.7,
+        "maxMs": 0.2,
+        "node": "<node 76 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 56,
+        "count": 19,
+        "totalMs": 4,
+        "maxMs": 0.7,
+        "node": "<node 56 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 83,
+        "count": 8,
+        "totalMs": 1.9,
+        "maxMs": 0.4,
+        "node": "<node 83 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 29,
+        "count": 1,
+        "totalMs": 0.5,
+        "maxMs": 0.5,
+        "node": "<node 29 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 77,
+        "count": 10,
+        "totalMs": 0.4,
+        "maxMs": 0.1,
+        "node": "<node 77 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 78,
+        "count": 10,
+        "totalMs": 0.2,
+        "maxMs": 0.1,
+        "node": "<node 78 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 75,
+        "count": 1,
+        "totalMs": 0.1,
+        "maxMs": 0.1,
+        "node": "<node 75 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 13,
+        "count": 3,
+        "totalMs": 0.1,
+        "maxMs": 0,
+        "node": "<node 13 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 24,
+        "count": 1,
+        "totalMs": 0.1,
+        "maxMs": 0.1,
+        "node": "<node 24 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 25,
+        "count": 1,
+        "totalMs": 0.1,
+        "maxMs": 0.1,
+        "node": "<node 25 (gone)>"
+      },
+      {
+        "name": "Paint",
+        "nodeId": 39,
+        "count": 1,
+        "totalMs": 0,
+        "maxMs": 0,
+        "node": "<node 39 (gone)>"
+      }
+    ]
+  },
+  "traceExit": {
+    "eventCount": 19034,
+    "threadTimeMs": {
+      "js": 111,
+      "style": 55,
+      "layout": 103,
+      "paint": 113,
+      "raster": 171,
+      "composite": 379
+    },
+    "worstCall": {
+      "ts": 50723512864,
+      "endTs": 50723512923,
+      "durMs": 0.1,
+      "functionName": "tick",
+      "url": "",
+      "scriptId": "3",
+      "lineNumber": 3,
+      "columnNumber": 16,
+      "scriptLines": 12,
+      "sourceLine": "requestAnimationFrame(tick);",
+      "context": [
+        "window.__perf = { frames: [], long: [], shifts: [], phase: 'idle' };",
+        "const tick = (t) => { window.__perf.frames.push([window.__perf.phase, t]); requestAnimationFrame(tick); };",
+        "requestAnimationFrame(tick);",
+        "new PerformanceObserver((list) => {",
+        "for (const e of list.getEntries()) window.__perf.long.push({ start: e.startTime, dur: e.duration });"
+      ]
+    },
+    "insideWorstCall": [],
+    "overlappingWorstCall": [],
+    "topJs": [
+      {
+        "name": "(anonymous)",
+        "count": 435,
+        "totalMs": 164.2,
+        "maxMs": 24.7
+      },
+      {
+        "name": "http://localhost:3100/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",
+        "count": 23,
+        "totalMs": 42.7,
+        "maxMs": 19.9
+      },
+      {
+        "name": "f",
+        "count": 28,
+        "totalMs": 31.2,
+        "maxMs": 4.3
+      },
+      {
+        "name": "w",
+        "count": 12,
+        "totalMs": 2.9,
+        "maxMs": 2.2
+      },
+      {
+        "name": "cs",
+        "count": 24,
+        "totalMs": 2.7,
+        "maxMs": 1.5
+      },
+      {
+        "name": "tick",
+        "count": 90,
+        "totalMs": 8.9,
+        "maxMs": 0.7
+      },
+      {
+        "name": "a",
+        "count": 9,
+        "totalMs": 2.2,
+        "maxMs": 0.4
+      },
+      {
+        "name": "animation.onfinish",
+        "count": 8,
+        "totalMs": 1.4,
+        "maxMs": 0.4
+      },
+      {
+        "name": "cc",
+        "count": 184,
+        "totalMs": 5.9,
+        "maxMs": 0.3
+      },
+      {
+        "name": "t",
+        "count": 1,
+        "totalMs": 0.3,
+        "maxMs": 0.3
+      },
+      {
+        "name": "ci",
+        "count": 14,
+        "totalMs": 0.7,
+        "maxMs": 0.2
+      },
+      {
+        "name": "tt",
+        "count": 36,
+        "totalMs": 0.8,
+        "maxMs": 0.1
+      }
+    ],
+    "timerFireAtMs": [
+      109,
+      285,
+      476,
+      678,
+      879,
+      1084,
+      1285,
+      1485,
+      1686
+    ],
+    "byName": [
+      {
+        "name": "ProxyMain::BeginMainFrame",
+        "count": 90,
+        "totalMs": 336.7,
+        "maxMs": 22.4
+      },
+      {
+        "name": "Graphics.Pipeline",
+        "count": 1059,
+        "totalMs": 199,
+        "maxMs": 2.4
+      },
+      {
+        "name": "RasterizerTaskImpl::RunOnWorkerThread",
+        "count": 317,
+        "totalMs": 170.9,
+        "maxMs": 13.3
+      },
+      {
+        "name": "RasterTask",
+        "count": 317,
+        "totalMs": 167.8,
+        "maxMs": 13.3
+      },
+      {
+        "name": "v8.callFunction",
+        "count": 435,
+        "totalMs": 164.2,
+        "maxMs": 24.7
+      },
+      {
+        "name": "GpuRasterBuffer::Playback",
+        "count": 317,
+        "totalMs": 163.8,
+        "maxMs": 13.3
+      },
+      {
+        "name": "FunctionCall",
+        "count": 430,
+        "totalMs": 99.7,
+        "maxMs": 19.9
+      },
+      {
+        "name": "ProxyImpl::ScheduledActionDraw",
+        "count": 91,
+        "totalMs": 85.9,
+        "maxMs": 2.5
+      },
+      {
+        "name": "LocalFrameView::RunPaintLifecyclePhase",
+        "count": 91,
+        "totalMs": 85.7,
+        "maxMs": 6.4
+      },
+      {
+        "name": "MainFrame.Draw",
+        "count": 91,
+        "totalMs": 85.4,
+        "maxMs": 2.5
+      },
+      {
+        "name": "LocalFrameView::RunStyleAndLayoutLifecyclePhases",
+        "count": 187,
+        "totalMs": 81.3,
+        "maxMs": 3.1
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "count": 112,
+        "totalMs": 55,
+        "maxMs": 11.5
+      },
+      {
+        "name": "Paint",
+        "count": 255,
+        "totalMs": 51,
+        "maxMs": 2.8
+      },
+      {
+        "name": "ProxyImpl::ReadyToCommit",
+        "count": 90,
+        "totalMs": 42.2,
+        "maxMs": 1.9
+      },
+      {
+        "name": "EventDispatch",
+        "count": 122,
+        "totalMs": 39.6,
+        "maxMs": 24.8
+      },
+      {
+        "name": "TimerFire",
+        "count": 9,
+        "totalMs": 37.1,
+        "maxMs": 5.9
+      },
+      {
+        "name": "Layerize",
+        "count": 90,
+        "totalMs": 36.8,
+        "maxMs": 4.4
+      },
+      {
+        "name": "LatencyInfo.Flow",
+        "count": 18,
+        "totalMs": 34.3,
+        "maxMs": 29.1
+      },
+      {
+        "name": "LocalFrameView::layout",
+        "count": 97,
+        "totalMs": 33.9,
+        "maxMs": 0.8
+      },
+      {
+        "name": "WidgetBaseInputHandler::OnHandleInputEvent",
+        "count": 3,
+        "totalMs": 33.9,
+        "maxMs": 29.1
+      },
+      {
+        "name": "Layout",
+        "count": 97,
+        "totalMs": 33.1,
+        "maxMs": 0.8
+      },
+      {
+        "name": "LayerTreeImpl::UpdateDrawProperties",
+        "count": 269,
+        "totalMs": 33.1,
+        "maxMs": 0.5
+      },
+      {
+        "name": "LayerTreeHostImpl::CommitComplete",
+        "count": 91,
+        "totalMs": 29.2,
+        "maxMs": 1.3
+      },
+      {
+        "name": "FireAnimationFrame",
+        "count": 108,
+        "totalMs": 29.2,
+        "maxMs": 1.9
+      },
+      {
+        "name": "LayerTreeHost::WaitForCommitCompletion",
+        "count": 91,
+        "totalMs": 28.3,
+        "maxMs": 16.7
+      },
+      {
+        "name": "LocalFrameView::performLayout",
+        "count": 97,
+        "totalMs": 28.1,
+        "maxMs": 0.7
+      },
+      {
+        "name": "PrePaint",
+        "count": 187,
+        "totalMs": 27.3,
+        "maxMs": 2
+      },
+      {
+        "name": "LayerTreeHostImpl::PrepareToDraw",
+        "count": 92,
+        "totalMs": 26.4,
+        "maxMs": 1.1
+      },
+      {
+        "name": "DirectRenderer::DrawFrame",
+        "count": 91,
+        "totalMs": 25.6,
+        "maxMs": 1.8
+      },
+      {
+        "name": "auto cc::LayerTreeHostImpl::PrepareTiles()::(lambda)::operator()()::(lambda)::operator()(uint32_t) const",
+        "count": 103,
+        "totalMs": 20.4,
+        "maxMs": 1.7
+      }
+    ],
+    "paintByNode": [
+      {
+        "name": "Paint",
+        "nodeId": 2,
+        "count": 85,
+        "totalMs": 32.6,
+        "maxMs": 2.8
+      },
+      {
+        "name": "Paint",
+        "nodeId": 56,
+        "count": 12,
+        "totalMs": 7.4,
+        "maxMs": 1.3
+      },
+      {
+        "name": "Paint",
+        "nodeId": 82,
+        "count": 69,
+        "totalMs": 3.9,
+        "maxMs": 0.1
+      },
+      {
+        "name": "Paint",
+        "nodeId": 67,
+        "count": 7,
+        "totalMs": 3.9,
+        "maxMs": 2.3
+      },
+      {
+        "name": "Paint",
+        "nodeId": 70,
+        "count": 3,
+        "totalMs": 0.9,
+        "maxMs": 0.6
+      },
+      {
+        "name": "Paint",
+        "nodeId": 33,
+        "count": 1,
+        "totalMs": 0.3,
+        "maxMs": 0.3
+      },
+      {
+        "name": "Paint",
+        "nodeId": 94,
+        "count": 3,
+        "totalMs": 0.2,
+        "maxMs": 0.1
+      },
+      {
+        "name": "Paint",
+        "nodeId": 83,
+        "count": 1,
+        "totalMs": 0.2,
+        "maxMs": 0.2
+      },
+      {
+        "name": "Paint",
+        "nodeId": 69,
+        "count": 1,
+        "totalMs": 0.2,
+        "maxMs": 0.2
+      },
+      {
+        "name": "Paint",
+        "nodeId": 34,
+        "count": 3,
+        "totalMs": 0.1,
+        "maxMs": 0.1
+      },
+      {
+        "name": "Paint",
+        "nodeId": 68,
+        "count": 1,
+        "totalMs": 0.1,
+        "maxMs": 0.1
+      },
+      {
+        "name": "Paint",
+        "nodeId": 19,
+        "count": 1,
+        "totalMs": 0.1,
+        "maxMs": 0.1
+      },
+      {
+        "name": "Paint",
+        "nodeId": 77,
+        "count": 2,
+        "totalMs": 0.1,
+        "maxMs": 0.1
+      },
+      {
+        "name": "Paint",
+        "nodeId": 113,
+        "count": 2,
+        "totalMs": 0.1,
+        "maxMs": 0
+      }
+    ],
+    "sample": {
+      "phase": "exitTraced",
+      "frames": 84,
+      "fps": 52.4,
+      "medianMs": 16.7,
+      "p95Ms": 33.4,
+      "maxMs": 50.2,
+      "over20": 9,
+      "over33": 9,
+      "over50": 2,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 18,
+      "slowFramesAtMs": [
+        68,
+        118,
+        151,
+        185,
+        235,
+        268,
+        301,
+        351,
+        401
+      ]
+    }
+  },
+  "profile": null,
+  "render": {
+    "note": "cumulative since renderer start; durations in seconds",
+    "layoutCountTotal": 153,
+    "recalcStyleCountTotal": 421,
+    "layoutDurationSecTotal": 0.26,
+    "scriptDurationSecTotal": 0.85,
+    "layoutDurationMsTotal": 262.71,
+    "scriptDurationMsTotal": 851.29
+  },
+  "overlayRemovedAfterExit": true,
+  "hidden": false
+}

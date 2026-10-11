@@ -1,0 +1,137 @@
+{
+  "note": "window off screen at -32000,-32000",
+  "controls": {
+    "calibration": {
+      "phase": "calibration",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.9,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 6,
+      "slowFramesAtMs": []
+    },
+    "list": {
+      "phase": "list",
+      "frames": 68,
+      "fps": 59.1,
+      "medianMs": 16.7,
+      "p95Ms": 16.9,
+      "maxMs": 33.4,
+      "over20": 1,
+      "over33": 1,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 57,
+      "slowFramesAtMs": [
+        90
+      ]
+    },
+    "listPaused": {
+      "phase": "listPaused",
+      "frames": 74,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.9,
+      "maxMs": 16.9,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 0,
+      "slowFramesAtMs": []
+    }
+  },
+  "focus": {
+    "longTitleTaskCreated": true,
+    "entry": {
+      "phase": "entry",
+      "frames": 120,
+      "fps": 47.9,
+      "medianMs": 16.7,
+      "p95Ms": 49.9,
+      "maxMs": 233.3,
+      "over20": 12,
+      "over33": 11,
+      "over50": 3,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 111,
+      "slowFramesAtMs": [
+        345,
+        395,
+        445,
+        511,
+        561,
+        611,
+        645,
+        678,
+        728,
+        778,
+        878
+      ]
+    },
+    "idle": {
+      "phase": "idle",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.9,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 4,
+      "slowFramesAtMs": []
+    },
+    "exit": {
+      "phase": "exit",
+      "frames": 70,
+      "fps": 49.3,
+      "medianMs": 16.7,
+      "p95Ms": 33.5,
+      "maxMs": 66.7,
+      "over20": 11,
+      "over33": 9,
+      "over50": 2,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 3,
+      "slowFramesAtMs": [
+        37,
+        103,
+        153,
+        187,
+        253,
+        287,
+        320,
+        353,
+        403
+      ]
+    }
+  },
+  "bisect": null,
+  "render": {
+    "layoutCountTotal": 85,
+    "recalcStyleCountTotal": 214,
+    "layoutDurationMsTotal": 0.24,
+    "scriptDurationMsTotal": 0.65
+  },
+  "overlayRemovedAfterExit": true,
+  "hidden": false
+}
