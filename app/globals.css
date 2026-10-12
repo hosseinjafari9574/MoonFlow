@@ -176,6 +176,28 @@
     font-weight: 500;
   }
 
+  /*
+   * A departing Focus Mode overlay.
+   *
+   * Everything eternal in the scene is still mid-loop when the exit starts — the
+   * two breathing rings re-raster, the sixteen specks drift, the live dot
+   * pulses — and each of them keeps painting and compositing on every frame of
+   * the fade, at opacities where none of it can be seen. The departure's
+   * dropped frames are spread across its whole window rather than spiked at the
+   * teardown (docs/motion-budget.md), so per-frame work like this is exactly
+   * what the window costs.
+   *
+   * `paused`, never `none`: ending an animation snaps its element back to the
+   * unanimated value, and a 760px ring jumping 4% as the fade starts is visible,
+   * whereas a paused one holds the frame it was on. `!important` because the
+   * utilities layer comes after this one and owns the `animation` shorthand.
+   */
+  .departing *,
+  .departing *::before,
+  .departing *::after {
+    animation-play-state: paused !important;
+  }
+
   /* 1px fading rule — used instead of flat borders. */
   .hairline {
     height: 1px;

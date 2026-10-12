@@ -78,6 +78,19 @@ export function presetBlurb(preset: TimerPreset): string {
 export const TICK_INTERVAL_MS = 200;
 
 /**
+ * Routine caps. Shared by the store (which clamps on save) and the persistence
+ * layer (which clamps on hydrate), so a routine is bounded on both ways in.
+ */
+export const TEMPLATE_LIMITS = {
+  /** Longest routine name. */
+  name: 60,
+  /** Longest task title inside a routine (matches the composer's own cap). */
+  title: 160,
+  /** Most tasks one routine can carry. */
+  tasks: 40,
+} as const;
+
+/**
  * Priority reads as a monochrome ladder — only the top rung earns colour.
  * Keeps the accent free for "live" state and amber for achievements.
  */

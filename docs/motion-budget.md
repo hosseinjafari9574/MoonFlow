@@ -23,7 +23,9 @@ node .freebuff/visual-check.mjs              # phone viewport (390x844 @ DPR 3):
                                               # the blooms' pixel falloff against
                                               # an unmasked reference of the same
                                               # fill, and that Focus Mode's speck
-                                              # layer and ring halo never scale
+                                              # layer and ring halo never scale,
+                                             # and that a departure freezes both
+                                             # without snapping them back
 node .freebuff/perf-summary.mjs <label> run1.json run2.json run3.json
 node .freebuff/phase-table.mjs run1.json run2.json   # one line per run, and
                                                      # *where* its slow frames fall
@@ -37,14 +39,18 @@ diffs a `LayerTree` snapshot of `paintCount` per layer across the window and
 resolves each layer back to its DOM node, which is how a repaint gets a name.
 
 The harness **starts the clock itself**, from the Pomodoro card, before the
-arrival. That is not a detail. The app used to start a focused task's session by
-itself the moment the overlay opened, and `entry`, `idle` and `exit` were
-measured with a clock running because of it — and `idle` is the budget's most
-important row precisely because it is the running state. A clock now runs only
-because the user started one, so the harness starts one; otherwise every arrival
-number would quietly change meaning to "a paused overlay" and the worst case
-would stop being measured at all. Every report records `focus.clockRunning`, so
-a run can be *shown* to have measured the state the budget is about.
+arrival. That is not a detail. `entry`, `idle` and `exit` are all measured with a
+clock running, and `idle` is the budget's most important row precisely because
+it is the running state — the instrument reticks its arc, comet head and ticks
+every 200ms. Entering Focus Mode starts the session by itself now, so the
+explicit start is kept as a control rather than a necessity: it makes the arrival
+independent of the entry path (the clock is running *before* the click, so the
+arrival cannot be measuring its own first tick), and it is the path a user takes
+who starts from the card and then opens the overlay. Were the clock left paused,
+every arrival number would quietly change meaning to "a paused overlay" and the
+worst case would stop being measured at all. Every report records
+`focus.clockRunning`, so a run can be *shown* to have measured the state the
+budget is about.
 
 The start-up pre-warm (change 8) had three instruments of its own: a `?nowarm`
 seam in the app, `.freebuff/warm-bisect.mjs` (paired A/B across the two arms in
@@ -144,7 +150,7 @@ Median of three runs with clean controls, 1600×1000, hardware raster.
 | `idle` | 30–45fps, p95 33.4ms, up to 22 frames > 33ms | **60fps, p95 16.8ms, 0 frames > 33ms** |
 | `entry` | 26.9–31.8fps, p95 83.3ms, 44–49 frames > 33ms, max 116–766ms | **45.1fps, p95 33.3ms, 7 frames > 33ms, max 316ms** |
 | `entry2` | 47.7fps, p95 49.3ms, 24 frames > 33ms, max 66.8ms | **50.8fps, p95 33.4ms, 16 frames > 33ms, max 83.1ms** |
-| `exit` | 42.9–46.4fps, p95 66.7ms, 11 frames > 33ms, max 200ms | 47fps, p95 49.9ms, 11 frames > 33ms, max 66.9ms — **still over p95** |
+| `exit` | 42.9–46.4fps, p95 66.7ms, 11 frames > 33ms, max 200ms | 47fps, p95 49.9ms, 11 frames > 33ms, max 66.9ms — **still over p95** (the departure pass below brings it inside) |
 
 The `entry` max is a single cold first-paint frame; the same arrival later in the
 session tops out at 83ms. The last two changes of that round alone — the page
@@ -244,6 +250,37 @@ page's sidebar 62 times behind an opaque overlay. CLS is 0 in every phase.
    the page shell's first full-page transform and raster, which a pre-warm of the
    overlay cannot pay for by construction — see "What is left".
 
+9. **The departure is a shorter window, one moving layer fewer, and a frozen
+   scene.** The exit's dropped frames were not a teardown spike. `phase-table.mjs`
+   places them *throughout* the window — 97, 181, 231, 264, 297, 347, 381, 430,
+   464ms after the click — so the window itself is what a departure costs, and
+   the last 0.14s of the old one paid for a full-page transform and overlay
+   compositing on a page that had already been fully visible for two frames.
+   Three things came out of that. The sheet's fade is 0.26s plus a 0.02s delay
+   instead of 0.4s plus 0.04s, matched by the page's recede (0.28s, from 0.42s)
+   rather than outliving it. The aurora and the speck layer lost their own exit
+   animations, which the sheet's fade was already multiplying — two
+   full-viewport layers moving in every frame of the fade for a difference
+   nobody can see. And every eternal animation in the scene — the two breathing
+   rings, the sixteen specks, the live dot — is frozen for the fade by
+   `.departing` (app/globals.css), applied to the overlay's live DOM node from an
+   effect, because the tree `AnimatePresence` keeps mounted during an exit is the
+   one from *before* the store flipped and every `className` in it still says the
+   overlay is open. `paused`, never `none`: ending an animation snaps its element
+   back to its unanimated value, and a 760px ring jumping 4% at the start of the
+   fade would be visible, whereas a paused one holds the frame it was on.
+
+   Median of three runs, controls clean in all six: `exit` p95 **49.9 → 33.4ms**,
+   frames > 33ms **9 → 6**, fps 49.3 → 52.7, and the drops that remain fall inside
+   the fade (last slow frame at 138–416ms, against 464–518ms before) instead of in
+   its tail. `idle` is unmoved — 60fps with no frame > 33ms — and the arrival reads
+   the same within the noise its p95 has always carried: frames > 50ms were 5, 4,
+   3 (median 4) across the three baseline runs and 5, 5, 5 across the three after
+   runs, while its p95 moved 34.1 → 49.6ms. That phase has ~10 slow frames out of
+   ~150, so its p95 sits on the boundary between the eighth
+   and ninth slowest frame and flips between 33 and 50 on a single frame; `over33`
+   and the > 50ms count are the numbers to read for an arrival.
+
 ## The phone pass (2026-10-11)
 
 Reported from the deployed build on a real Android phone: the Focus Mode arrival
@@ -335,12 +372,36 @@ own first paint still carries a ~50ms frame in every load
 (`.freebuff/startup-check.mjs`), which the `list` control (sampled 700ms after
 the shell appears) does not cover.
 
-**The exit**, still over its p95 line: ~10 frames > 33ms (each a single missed
-vsync, 34–50ms) in the first half-second, p95 between 33.4 and 50 depending on
-the run. A paired bisect that switched off the transforms of the page and of the
-overlay content — bracketed by plain controls — moved nothing: the cost is not
-one animation, it is *tearing the scene down*, ~45 composited layers unmounting
-in one commit while the page underneath repaints itself back.
+**The exit** is inside its p95 line as of change 9 (p95 33.4ms, 6 frames > 33ms,
+all of them inside the fade), with one frame still past 50ms. What is left there
+is not an animation turning: a paired bisect that switched off the transforms of
+the page and of the overlay content — bracketed by plain controls — moved
+nothing, because the cost is *tearing the scene down*, ~45 composited layers
+unmounting in one commit while the page underneath repaints itself back. That is
+also where the last candidate sat.
+
+**That candidate has now been priced and declined.** Hiding the overlay's content
+so the teardown commit has nothing painted left to drop is a real gain in exactly
+one arm — the arm that gives the dissolve away. As a ceiling (the content hidden
+from the exit's *first* frame, CSS only, riding the `.departing` class the app
+already applies for its freeze: the `contentHidden` condition in `--exitBisect`,
+then three fresh runs against the shipped build's three) it moves `exit` frames
+> 33ms **6 → 3**, p95 **33.4 → 16.8ms**, fps 52.7 → 57.3 and max 66.6 → 50.1. Its
+price is the whole departure: the ring, the title and the room go at full strength
+and only the dark sheet dissolves. The arm that keeps the dissolve — the same hide
+at 160ms, where the sheet is at ~2.7% and the content with it, so the step is below
+the threshold of seeing anything — buys none of it, and reads worse on every exit
+number: p95 **49.7ms** (from 33.4), frames > 33ms **7**, frames > 50ms **2**, max
+**83.4**, on three runs whose controls were as clean as the shipped build's. The
+reason is placement: the dropped frames live in the first ~200ms *while the content
+is still on screen*, so a hide late enough to be invisible is a hide that has
+already missed them and now adds its own commit into the fade. And neither arm
+touches the one line the exit misses — `over50` stays 1 either way, because that
+frame is the departure's own start commit and the page repainting itself back.
+So the trade is not a dissolve for a few frames: it is the whole dissolve for
+frames the departure is already inside budget on, and none of the one it is over.
+The condition stays in the harness so the number can be re-taken; the app change
+does not.
 
 The first candidate has now been priced as well. An `--exitBisect` condition
 that takes the arrival-only layers out of the tree — the veil container and the
@@ -359,7 +420,9 @@ unmounting it animated.
 re-trying on this machine): the baked-PNG grain, hiding any *single* overlay
 layer (grain, one veil, aurora, sweep) — taking all three arrival-only layers out
 at once is worth about a frame, which is the paragraph above — and neutralising
-the shell / lens / stage transforms.
+the shell / lens / stage transforms. The departure's content-hide is ruled out as
+well, but not as noise: it is priced in "What is left", where the arm that keeps
+the look buys nothing and the arm that buys frames costs the dissolve.
 
 **A note on the machine.** These numbers want a quiet one. On a busy machine the
 `list` control goes dirty — two of three runs on the evening of 2026-10-10, with

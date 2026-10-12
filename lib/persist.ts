@@ -14,13 +14,14 @@
  * (a task with no title, a day key that isn't a day key).
  */
 
-import { TIMER_PRESETS } from "@/lib/constants";
+import { TEMPLATE_LIMITS, TIMER_PRESETS } from "@/lib/constants";
 import { uid } from "@/lib/format";
 import type {
   ActivityMap,
   Priority,
   Settings,
   Task,
+  TaskTemplate,
   TimerMode,
   TimerPresetId,
 } from "@/lib/types";
@@ -29,6 +30,10 @@ export interface PersistedTodos {
   tasks: Task[];
   activity: ActivityMap;
   settings: Settings;
+}
+
+export interface PersistedTemplates {
+  templates: TaskTemplate[];
 }
 
 export interface PersistedTimer {
@@ -70,6 +75,11 @@ function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : null;
+}
+
+/** String forced under a character cap (already trimmed by `asString`). */
+function clip(value: string, max: number): string {
+  return value.length > max ? value.slice(0, max) : value;
 }
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
@@ -182,6 +192,56 @@ export function normalizeTodos(value: unknown): PersistedTodos {
     activity: normalizeActivity(record.activity),
     settings: normalizeSettings(record.settings),
   };
+}
+
+/**
+ * Repair a single routine.
+ *
+ * A routine survives on its name *and* at least one task title: a named
+ * routine with no tasks would be a row that adds nothing when it is clicked,
+ * which is the same as carrying no information at all — the rule that already
+ * drops a task with no title. Titles survive duplicates (a routine may repeat
+ * a task on purpose) but are capped like every other stored string.
+ */
+export function normalizeTemplate(
+  value: unknown,
+  fallbackCreatedAt = Date.now(),
+): TaskTemplate | null {
+  if (!isRecord(value)) return null;
+  const name = asString(value.name);
+  if (!name) return null;
+  const raw = Array.isArray(value.titles) ? value.titles : [];
+  const titles: string[] = [];
+  for (const entry of raw) {
+    const title = asString(entry);
+    if (!title) continue;
+    titles.push(clip(title, TEMPLATE_LIMITS.title));
+    if (titles.length >= TEMPLATE_LIMITS.tasks) break;
+  }
+  if (titles.length === 0) return null;
+  return {
+    id: asString(value.id) ?? uid(),
+    name: clip(name, TEMPLATE_LIMITS.name),
+    titles,
+    createdAt: asEpoch(value.createdAt, fallbackCreatedAt),
+  };
+}
+
+export function normalizeTemplates(value: unknown): PersistedTemplates {
+  const record = isRecord(value) ? value : {};
+  const raw = Array.isArray(record.templates) ? record.templates : [];
+  const now = Date.now();
+  const templates: TaskTemplate[] = [];
+  const seen = new Set<string>();
+  raw.forEach((entry, index) => {
+    // Newest first in storage, so count backwards when a stamp is missing.
+    const template = normalizeTemplate(entry, now - index * 1_000);
+    // A duplicated id would make one row drive another, so keep the first.
+    if (!template || seen.has(template.id)) return;
+    seen.add(template.id);
+    templates.push(template);
+  });
+  return { templates };
 }
 
 export function normalizeTimer(value: unknown): PersistedTimer {

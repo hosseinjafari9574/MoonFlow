@@ -34,12 +34,32 @@ export function startFocusForTask(taskId: string | null, autoStart = true) {
  * Enter Focus Mode for a task — which is the user saying "focus on this, now".
  *
  * Opening the overlay starts the session for that task; there is no second
- * click to make. The automatic advance after completing a task is the one path
- * that only *moves* the overlay (it calls `openFocus` on its own): a break that
- * starts itself is a break nobody took.
+ * click to make.
  */
 export function enterFocus(taskId: string) {
   useUiStore.getState().openFocus(taskId);
+  startFocusForTask(taskId);
+}
+
+/**
+ * The overlay moving on to the next task after one is completed.
+ *
+ * Being in Focus Mode means the clock runs, and that does not stop being true
+ * because the task under it was finished: the user is still in the room, and
+ * still looking at the screen they just ticked a box on. So the next task's
+ * session starts the way the first one did — the same rule as entry, applied to
+ * the one other moment the overlay lands on a task by itself. Otherwise ticking
+ * a task off dropped the user onto a dead 25:00 and made them press Start to
+ * get back to work they were already doing.
+ *
+ * The one thing it will not do is cut a *break*. A phase change with no user
+ * action behind it — the clock reaching zero, or a skip — still arms and waits,
+ * and completing a task during a running break is not the break ending, so the
+ * advance links the next task and leaves the clock alone.
+ */
+export function advanceFocus(taskId: string) {
+  useUiStore.getState().openFocus(taskId);
+  if (useTimerStore.getState().mode !== "focus") return;
   startFocusForTask(taskId);
 }
 

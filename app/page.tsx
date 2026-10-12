@@ -9,6 +9,7 @@ import { useTimerEngine } from "@/hooks/use-timer-engine";
 import { EASE_OUT_EXPO, EASE_SOFT } from "@/lib/motion";
 import { useTodoStore } from "@/store/use-todo-store";
 import { useUiStore } from "@/store/use-ui-store";
+import { useTemplateStore } from "@/store/use-template-store";
 import { useTimerStore } from "@/store/use-timer-store";
 import { AppHeader } from "@/components/app-header";
 import { EditTaskDialog } from "@/components/edit-task-dialog";
@@ -18,6 +19,8 @@ import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { StatsPanel } from "@/components/stats-panel";
 import { TaskComposer } from "@/components/task-composer";
 import { TaskList } from "@/components/task-list";
+import { TemplateDialog } from "@/components/template-dialog";
+import { TemplatesPanel } from "@/components/templates-panel";
 import { Toaster } from "@/components/toaster";
 
 /** Two slow blooms — enough to keep the graphite from going flat. */
@@ -43,6 +46,7 @@ function AppShell() {
           <StatsPanel />
           <TaskComposer />
           <TaskList />
+          <TemplatesPanel />
         </div>
         <aside className="grid content-start gap-4 lg:sticky lg:top-24 lg:self-start">
           <PomodoroCard />
@@ -68,6 +72,7 @@ export default function HomePage() {
     void (async () => {
       await Promise.all([
         useTodoStore.persist.rehydrate(),
+        useTemplateStore.persist.rehydrate(),
         useTimerStore.persist.rehydrate(),
       ]);
       if (!cancelled) useUiStore.getState().setHydrated(true);
@@ -102,8 +107,10 @@ export default function HomePage() {
   };
 
   /* Visible window of the recede: the overlay's fade on the way in, the
-   * overlay's own exit (0.4s + 0.04s delay) on the way out. */
-  const recedeDuration = focusOpen ? 0.26 : 0.42;
+   * overlay's own fade on the way out — 0.26s plus its 0.02s delay. The page
+   * is visible through the whole exit, so a longer recede would keep a
+   * full-page transform running after the sheet has gone. */
+  const recedeDuration = focusOpen ? 0.26 : 0.28;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -149,6 +156,7 @@ export default function HomePage() {
         />
         <FocusMode />
         <EditTaskDialog />
+        <TemplateDialog />
         <ShortcutsDialog />
         <Toaster />
       </div>

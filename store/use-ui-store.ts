@@ -29,6 +29,14 @@ interface UiState {
   openEdit: (id: string) => void;
   closeEdit: () => void;
 
+  /**
+   * Routine open in the templates dialog. `null` means closed; an entry whose
+   * `id` is `null` is a new, unsaved routine.
+   */
+  templateEditor: { id: string | null } | null;
+  openTemplateEditor: (id: string | null) => void;
+  closeTemplateEditor: () => void;
+
   shortcutsOpen: boolean;
   setShortcutsOpen: (open: boolean) => void;
 
@@ -60,6 +68,10 @@ export const useUiStore = create<UiState>()((set) => ({
   editingId: null,
   openEdit: (id) => set({ editingId: id }),
   closeEdit: () => set({ editingId: null }),
+
+  templateEditor: null,
+  openTemplateEditor: (id) => set({ templateEditor: { id } }),
+  closeTemplateEditor: () => set({ templateEditor: null }),
 
   shortcutsOpen: false,
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),

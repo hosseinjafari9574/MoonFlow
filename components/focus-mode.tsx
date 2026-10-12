@@ -19,7 +19,7 @@ import {
   SPRING,
 } from "@/lib/motion";
 import { toneForMode, toneKeyForMode } from "@/lib/tone";
-import { getProgress } from "@/lib/timer-actions";
+import { advanceFocus, getProgress } from "@/lib/timer-actions";
 import { toggleTaskWithFeedback } from "@/lib/task-actions";
 import type { TimerMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -183,14 +183,11 @@ export function FocusMode() {
   }, [open]);
 
   /*
-   * Keep the timer linked to the task the overlay is showing.
-   *
-   * Entering Focus Mode by the user's own click starts the session itself
-   * (`enterFocus`), so this effect is about the *automatic* advance: when
-   * completing a task moves the overlay to the next one, the next task arrives
-   * linked and *armed* — pointed at, not underway. That is the one path that
-   * must not start a clock by itself, because a break that begins on its own is
-   * a break nobody took.
+   * Keep the timer linked to the task the overlay is showing, whatever put it
+   * there — a click on the row (`enterFocus`), the F key, or the advance after
+   * a task is completed (`advanceFocus`). Both entry paths start the session
+   * themselves; this effect is only the safety net that keeps the link honest
+   * when something else moved the overlay.
    */
   useEffect(() => {
     if (!focusTaskId) return;
@@ -209,6 +206,23 @@ export function FocusMode() {
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus?.();
     };
+  }, [open]);
+
+  /*
+   * The departure freezes the scene's eternal animations (the breathing rings,
+   * the drifting specks, the live dot) for the length of the fade — see
+   * `.departing` in app/globals.css for why the window wants it.
+   *
+   * The class cannot come from the render. The tree AnimatePresence keeps
+   * mounted during an exit is the one from *before* the store flipped, so every
+   * `className` in it still says the overlay is open; only an effect (which
+   * runs in the re-render that follows) can see the new state. It goes on the
+   * live DOM node, which is the same node either way.
+   */
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.classList.toggle("departing", !open);
   }, [open]);
 
   /* The task vanished (deleted) — leave gracefully. */
@@ -291,11 +305,11 @@ export function FocusMode() {
     /*
      * Completing the task ends *its* session. The minutes it was given are
      * banked where they were spent — before the completion releases the link,
-     * so they land on this task and not on the day alone — and the clock goes
-     * back to armed for whoever is next. That keeps two things true at once:
-     * the next task arrives with a whole session instead of the tail of the one
-     * that just finished, and nothing keeps running that the user did not ask
-     * for. A break is left alone: the task ending is not the pause ending.
+     * so they land on this task and not on the day alone — and the clock is
+     * re-armed to a whole session, so whoever is next gets a full one instead
+     * of the tail of the one that just finished. The advance then starts it:
+     * the user is still in here, so landing on a task still means working on
+     * it. A break is left alone: the task ending is not the pause ending.
      */
     const timer = useTimerStore.getState();
     if (timer.mode === "focus") timer.reset();
@@ -319,7 +333,8 @@ export function FocusMode() {
         ? todos.filter((item) => item.tags.includes(ui.tagFilter as string))
         : todos;
       const nextTask = sortTasks(pool).find((item) => !item.completed);
-      if (nextTask) ui.openFocus(nextTask.id);
+      /* Same rule as entry: landing on a task in here starts its session. */
+      if (nextTask) advanceFocus(nextTask.id);
       else ui.closeFocus();
     }, 1000);
   }
@@ -660,7 +675,8 @@ export function FocusMode() {
                 >
                   <div className="grid place-items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/40">
-                      {running ? "Remaining" : "Paused"}
+                      {/* A clock that has never run is *ready*, not paused. */}
+                      {running ? "Remaining" : fresh ? "Ready" : "Paused"}
                     </span>
                     <motion.span
                       key={mode}
@@ -872,7 +888,8 @@ export function FocusMode() {
                   )}
                 >
                   <span className="flex items-center gap-1.5">
-                    <span className="kbd">Space</span> pause
+                    <span className="kbd">Space</span>{" "}
+                    {running ? "pause" : fresh ? "start" : "resume"}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="kbd">X</span> complete
