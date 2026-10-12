@@ -63,7 +63,18 @@ export const riseIn: Variants = {
 export const focusShell: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { duration: 0.26, ease: EASE_SOFT } },
-  exit: { opacity: 0, transition: { duration: 0.4, ease: EASE_SOFT, delay: 0.04 } },
+  /*
+   * The departure is the same 0.26s window as the arrival, and for the same
+   * reason: past it the page behind an already-transparent sheet has been
+   * visible in full for a frame or two, so the rest is compositing nobody sees.
+   * Unlike the arrival this is not a guess about legibility but a measurement —
+   * the exit's dropped frames fall *throughout* the window (97, 181, 231, 264,
+   * 297, 347, 381, 430, 464ms after the click, `.freebuff/perf-focus.mjs`), not
+   * at one teardown commit, so the window itself is what the departure costs.
+   * The old 0.4s + 0.04s delay spent 0.14s of full-page transform and overlay
+   * compositing on a page that was already fully visible.
+   */
+  exit: { opacity: 0, transition: { duration: 0.26, ease: EASE_SOFT, delay: 0.02 } },
 };
 
 /**
@@ -77,7 +88,12 @@ export const focusShell: Variants = {
 export const focusAurora: Variants = {
   hidden: { opacity: 0, y: 26 },
   show: { opacity: 1, y: 0, transition: { duration: 1.4, ease: EASE_SOFT } },
-  exit: { opacity: 0, transition: { duration: 0.3, ease: EASE_SOFT } },
+  /*
+   * No `exit` of its own: the sheet's fade multiplies this layer's opacity
+   * anyway, so a second full-viewport fade on top of it buys no visible
+   * difference — only one more composited layer moving in every frame of the
+   * departure.
+   */
 };
 
 /**
@@ -92,7 +108,8 @@ export const focusAurora: Variants = {
 export const focusLens: Variants = {
   hidden: { opacity: 0, y: 16 },
   show: { opacity: 1, y: 0, transition: { duration: 1.05, ease: EASE_OUT_EXPO } },
-  exit: { opacity: 0, y: 12, transition: { duration: 0.36, ease: EASE_SOFT } },
+  /* No `exit` either — the specks are 1–2.5px wide, so a 12px rise under a
+     fade nobody can see is not worth a moving layer. */
 };
 
 /**

@@ -208,6 +208,23 @@ export function FocusMode() {
     };
   }, [open]);
 
+  /*
+   * The departure freezes the scene's eternal animations (the breathing rings,
+   * the drifting specks, the live dot) for the length of the fade — see
+   * `.departing` in app/globals.css for why the window wants it.
+   *
+   * The class cannot come from the render. The tree AnimatePresence keeps
+   * mounted during an exit is the one from *before* the store flipped, so every
+   * `className` in it still says the overlay is open; only an effect (which
+   * runs in the re-render that follows) can see the new state. It goes on the
+   * live DOM node, which is the same node either way.
+   */
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.classList.toggle("departing", !open);
+  }, [open]);
+
   /* The task vanished (deleted) — leave gracefully. */
   useEffect(() => {
     if (focusTaskId && !task) closeFocus();

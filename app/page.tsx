@@ -107,8 +107,10 @@ export default function HomePage() {
   };
 
   /* Visible window of the recede: the overlay's fade on the way in, the
-   * overlay's own exit (0.4s + 0.04s delay) on the way out. */
-  const recedeDuration = focusOpen ? 0.26 : 0.42;
+   * overlay's own fade on the way out — 0.26s plus its 0.02s delay. The page
+   * is visible through the whole exit, so a longer recede would keep a
+   * full-page transform running after the sheet has gone. */
+  const recedeDuration = focusOpen ? 0.26 : 0.28;
 
   return (
     <MotionConfig reducedMotion="user">
