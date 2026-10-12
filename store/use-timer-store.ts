@@ -146,10 +146,10 @@ export const useTimerStore = create<TimerState>()(
       /*
        * Skipping moves the phase on; like the automatic hand-off it stops
        * there. One rule for the whole timer: a clock runs because the user
-       * asked for one — by pressing Start, or by entering Focus Mode on a task,
-       * which is the same request — and never because a phase changed on its
-       * own. Otherwise the break after a skip is spent away from the screen
-       * before it is ever noticed.
+       * asked for one — pressing Start, entering Focus Mode on a task, or
+       * finishing one while Focus Mode is still open on the next — and never
+       * because a phase changed on its own. Otherwise the break after a skip is
+       * spent away from the screen before it is ever noticed.
        */
       skip: () => {
         const state = get();

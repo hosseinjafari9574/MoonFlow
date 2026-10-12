@@ -50,7 +50,9 @@ npm run typecheck  # tsc --noEmit
   backdrop (slow aurora drift, floating specks, vignette and film grain), a
   glowing progress ring with a comet tip and minute graduations, staggered
   entrance choreography, session-phase shockwaves and a completion celebration.
-  Only the essentials: Pause / Complete / Exit. `Esc` leaves any time.
+  Only the essentials: Pause / Complete / Exit. `Esc` leaves any time. Opening
+  it *starts the session* — one click, no second start — and so does the
+  advance to the next task when you complete one from inside it.
 - **Phase tones** — focus is the only colourful state (indigo); every break
   drains to hue-less ivory, so the shift is felt before it is read. The
   full-screen aurora, ring, controls and eyebrow all follow the same tone.
@@ -65,8 +67,9 @@ npm run typecheck  # tsc --noEmit
     blocks)
   A smooth hand-off: when a session ends, the next phase arms itself and the
   state changes on its own — but a phase change never starts a clock. Sessions
-  run because you asked for one: Start, or entering Focus Mode on a task, which
-  starts that task's session as it opens. Optional sound feedback, session
+  run because you asked for one: Start, entering Focus Mode on a task (which
+  starts that task's session as it opens), or completing a task while Focus
+  Mode is open on the next one. Optional sound feedback, session
   counters, skip and reset. Completed sessions and focus minutes are persisted
   per task and overall.
 - **Tasks** — create, edit, delete, complete, plus optional priority and tags

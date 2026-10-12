@@ -37,14 +37,18 @@ diffs a `LayerTree` snapshot of `paintCount` per layer across the window and
 resolves each layer back to its DOM node, which is how a repaint gets a name.
 
 The harness **starts the clock itself**, from the Pomodoro card, before the
-arrival. That is not a detail. The app used to start a focused task's session by
-itself the moment the overlay opened, and `entry`, `idle` and `exit` were
-measured with a clock running because of it — and `idle` is the budget's most
-important row precisely because it is the running state. A clock now runs only
-because the user started one, so the harness starts one; otherwise every arrival
-number would quietly change meaning to "a paused overlay" and the worst case
-would stop being measured at all. Every report records `focus.clockRunning`, so
-a run can be *shown* to have measured the state the budget is about.
+arrival. That is not a detail. `entry`, `idle` and `exit` are all measured with a
+clock running, and `idle` is the budget's most important row precisely because
+it is the running state — the instrument reticks its arc, comet head and ticks
+every 200ms. Entering Focus Mode starts the session by itself now, so the
+explicit start is kept as a control rather than a necessity: it makes the arrival
+independent of the entry path (the clock is running *before* the click, so the
+arrival cannot be measuring its own first tick), and it is the path a user takes
+who starts from the card and then opens the overlay. Were the clock left paused,
+every arrival number would quietly change meaning to "a paused overlay" and the
+worst case would stop being measured at all. Every report records
+`focus.clockRunning`, so a run can be *shown* to have measured the state the
+budget is about.
 
 The start-up pre-warm (change 8) had three instruments of its own: a `?nowarm`
 seam in the app, `.freebuff/warm-bisect.mjs` (paired A/B across the two arms in

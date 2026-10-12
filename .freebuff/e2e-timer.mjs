@@ -10,10 +10,10 @@
  *   3  the fourth session arming the long break
  *   4  Start from the armed state actually runs, and persists
  *   5  Skip arms the next phase instead of starting it
- *   6  Focus Mode reads "Resume" for a paused clock, "Start" for an armed one,
- *      and opening it starts nothing
+ *   6  opening Focus Mode starts the session it belongs to — resuming a paused
+ *      one, or replacing a break with a whole focus session
  *   7  a running session survives a reload untouched
- *   8  completing a task advances the overlay without starting the clock
+ *   8  completing a task advances the overlay and starts the next session
  *   9  the task row's explicit start button still runs a session
  *   10 a session the phone finished while the app was asleep is still recorded
  *   11 the same completion, noticed late on a live page
@@ -176,7 +176,11 @@ const READ = `(() => {
   };
 })()`;
 
-const read = (session) => session.eval(READ);
+/** Read the UI, optionally letting the clock run first (default: straight away). */
+const read = async (session, settleMs = 0) => {
+  if (settleMs) await sleep(settleMs);
+  return session.eval(READ);
+};
 
 /*
  * What the app banked, from the todos payload. Totals rather than today's row,
@@ -270,7 +274,10 @@ async function click(session, selector) {
     /* Say what *is* on screen — a missing target is usually a wrong overlay. */
     const seen = await session.eval(`(() => ({
       dialogs: [...document.querySelectorAll('[role="dialog"]')].map((d) => d.getAttribute('aria-label')),
+      hidden: [...document.querySelectorAll('[role="dialog"]')].map((d) => d.getAttribute('aria-hidden')),
+      buttons: [...document.querySelectorAll('[role="dialog"] button')].map((b) => b.getAttribute('aria-label')),
       rows: [...document.querySelectorAll('[data-task-id]')].map((r) => r.getAttribute('data-task-id')),
+      title: [...document.querySelectorAll('[role="dialog"] h1')].map((h) => h.textContent),
     }))()`);
     throw new Error(`no element to click: ${selector} — on screen: ${JSON.stringify(seen)}`);
   }
@@ -588,10 +595,11 @@ try {
   );
 
   /*
-   * 8 — the automatic advance is a state change, not a start. Completing the
-   * task ends *its* session (the minutes are banked where they were spent) and
-   * the next task arrives armed, with a whole session in front of it. Seeded 15
-   * minutes into "First task", so the banking is measurable.
+   * 8 — the advance follows the same rule as entry. Completing the task ends
+   * *its* session (the minutes are banked where they were spent) and the next
+   * task comes up with a whole session already running: the user is still in
+   * the room. Seeded 15 minutes into "First task", so the banking is
+   * measurable, and the next session is the one that must be ticking.
    */
   await load(
     session,
@@ -615,27 +623,32 @@ try {
   );
   await sleep(300);
   const advanced = await read(session);
-  const advancedFreeze = await frozen(session);
+  const advancedLater = await read(session, 1_600);
   const advancedBanked = await readTodos(session);
   check(
-    "8 completing a task banks its part-session and arms the next one, unstarted",
+    "8 completing a task banks its part-session and starts a whole one for the next",
     advanced.dialogTask === "Second task" &&
       advanced.saved?.taskId === "e2e-1" &&
-      advanced.saved?.running === false &&
-      advanced.saved?.endsAt === null &&
-      advanced.dialogLabel === "Start timer" &&
-      advancedFreeze.before === advancedFreeze.after &&
-      advancedFreeze.before === 1500 &&
+      advanced.saved?.running === true &&
+      advanced.saved?.endsAt !== null &&
+      advanced.dialogLabel === "Pause timer" &&
+      /* A whole session in front of it, not the tail of the one that just ended. */
+      (seconds(advanced.clock) ?? 0) <= 1500 &&
+      (seconds(advanced.clock) ?? 0) > 1470 &&
+      (seconds(advancedLater.clock) ?? 0) < (seconds(advanced.clock) ?? 0) &&
       advancedBanked.tasks?.find((t) => t.id === "e2e-0")?.focusMinutes === 15 &&
-      advancedBanked.tasks?.find((t) => t.id === "e2e-0")?.pomodoros === 0,
+      advancedBanked.tasks?.find((t) => t.id === "e2e-0")?.pomodoros === 0 &&
+      advancedBanked.tasks?.find((t) => t.id === "e2e-1")?.focusMinutes === 0,
     JSON.stringify({
       task: advanced.dialogTask,
       label: advanced.dialogLabel,
       saved: advanced.saved,
-      frozen: [advancedFreeze.before, advancedFreeze.after],
+      clock: [advanced.clock, advancedLater.clock],
       banked: advancedBanked,
     }),
   );
+  await click(session, `${OVERLAY} button[aria-label="Pause timer"]`);
+  await sleep(300);
   await click(session, `${OVERLAY} button[aria-label="Exit focus mode"]`);
   await sleep(400);
 
@@ -936,7 +949,14 @@ try {
   await click(session, `button[aria-label="Enter focus mode for “Tagged task”"]`);
   await waitFor(session, `!!document.querySelector(${JSON.stringify(OVERLAY)})`, "focus mode for the tagged task");
   await sleep(400);
-  await click(session, `${OVERLAY} button[aria-label="Complete “Tagged task””]`);
+  /*
+   * ASCII-only selector on purpose. The overlay has exactly one Complete
+   * button, and a full label is where a smart-quote slip hides: the closing
+   * ASCII quote of this selector was once typed as a curly one, so the value
+   * never closed and querySelector quietly answered "no such element" while
+   * the button sat there in the DOM.
+   */
+  await click(session, `${OVERLAY} button[aria-label^="Complete"]`);
   await sleep(2_200);
   const overlayGone = await session.eval(
     `document.querySelector(${JSON.stringify(OVERLAY)}) === null`,
@@ -967,7 +987,10 @@ try {
       entered.saved?.taskId === "e2e-0" &&
       entered.saved?.mode === "focus" &&
       entered.dialogLabel === "Pause timer" &&
-      (seconds(entered.clock) ?? 0) < 1500 &&
+      /* A whole session, at most a moment in. The clock ceils, so a session
+       * that has just started still reads 25:00 for its first second. */
+      (seconds(entered.clock) ?? 0) >= 1490 &&
+      (seconds(entered.clock) ?? 0) <= 1500 &&
       /^Focus · \d+:\d\d$/.test(enteredChips["e2e-0"]?.chip ?? ""),
     JSON.stringify({
       saved: entered.saved,
