@@ -807,6 +807,17 @@ try {
      */
     const ARRIVAL_ONLY = `[role="dialog"] > div.z-10, [role="dialog"] > span.z-\\[12\\]`;
     const ARRIVAL_ONLY_OFF = `${ARRIVAL_ONLY} { display: none !important; }`;
+    /*
+     * The last untested exit candidate: hide the overlay's content in one
+     * commit, so the ~45 composited layers stop painting for the tail of the
+     * fade and the teardown commit has nothing painted left to drop. This is
+     * arm one — hidden from the exit's *first* frame, which is the ceiling of
+     * what the idea can buy (and obviously the worst case for the look: the
+     * ring and the title would pop off at full opacity). It rides the
+     * `.departing` class the app already applies when a departure starts, so
+     * it tests the shipped code path without touching the app.
+     */
+    const HIDE_CONTENT = '.departing > * { visibility: hidden !important; }';
     exitBisect = {};
     for (const [label, css, probe] of [
       ["base1", null, null],
@@ -815,6 +826,7 @@ try {
       ["dialogNoTransform", DIALOG_OFF, null],
       ["both", SHELL_OFF + DIALOG_OFF, null],
       ["base3", null, null],
+      ["contentHidden", HIDE_CONTENT, '[role="dialog"] > *'],
       ["arrivalLayersOff", ARRIVAL_ONLY_OFF, ARRIVAL_ONLY],
       ["base4", null, null],
     ]) {

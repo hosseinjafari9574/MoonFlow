@@ -378,14 +378,30 @@ is not an animation turning: a paired bisect that switched off the transforms of
 the page and of the overlay content — bracketed by plain controls — moved
 nothing, because the cost is *tearing the scene down*, ~45 composited layers
 unmounting in one commit while the page underneath repaints itself back. That is
-also where the one remaining candidate sits, and it is now the only one left:
-hide the overlay's content in a single commit *before* it unmounts, so the
-teardown commit has nothing painted left to drop. It is not free — a `visibility`
-flip early in the fade would pop the ring and the title off the sheet instead of
-dissolving them, and a flip at the end of the fade (invisible by definition) does
-not shrink the frames that are slow. It is worth trying only against a measured
-target: the ~10 remaining dropped-frame milliseconds, not the 16 that change 9
-already paid for.
+also where the last candidate sat.
+
+**That candidate has now been priced and declined.** Hiding the overlay's content
+so the teardown commit has nothing painted left to drop is a real gain in exactly
+one arm — the arm that gives the dissolve away. As a ceiling (the content hidden
+from the exit's *first* frame, CSS only, riding the `.departing` class the app
+already applies for its freeze: the `contentHidden` condition in `--exitBisect`,
+then three fresh runs against the shipped build's three) it moves `exit` frames
+> 33ms **6 → 3**, p95 **33.4 → 16.8ms**, fps 52.7 → 57.3 and max 66.6 → 50.1. Its
+price is the whole departure: the ring, the title and the room go at full strength
+and only the dark sheet dissolves. The arm that keeps the dissolve — the same hide
+at 160ms, where the sheet is at ~2.7% and the content with it, so the step is below
+the threshold of seeing anything — buys none of it, and reads worse on every exit
+number: p95 **49.7ms** (from 33.4), frames > 33ms **7**, frames > 50ms **2**, max
+**83.4**, on three runs whose controls were as clean as the shipped build's. The
+reason is placement: the dropped frames live in the first ~200ms *while the content
+is still on screen*, so a hide late enough to be invisible is a hide that has
+already missed them and now adds its own commit into the fade. And neither arm
+touches the one line the exit misses — `over50` stays 1 either way, because that
+frame is the departure's own start commit and the page repainting itself back.
+So the trade is not a dissolve for a few frames: it is the whole dissolve for
+frames the departure is already inside budget on, and none of the one it is over.
+The condition stays in the harness so the number can be re-taken; the app change
+does not.
 
 The first candidate has now been priced as well. An `--exitBisect` condition
 that takes the arrival-only layers out of the tree — the veil container and the
@@ -404,7 +420,9 @@ unmounting it animated.
 re-trying on this machine): the baked-PNG grain, hiding any *single* overlay
 layer (grain, one veil, aurora, sweep) — taking all three arrival-only layers out
 at once is worth about a frame, which is the paragraph above — and neutralising
-the shell / lens / stage transforms.
+the shell / lens / stage transforms. The departure's content-hide is ruled out as
+well, but not as noise: it is priced in "What is left", where the arm that keeps
+the look buys nothing and the arm that buys frames costs the dissolve.
 
 **A note on the machine.** These numbers want a quiet one. On a busy machine the
 `list` control goes dirty — two of three runs on the evening of 2026-10-10, with
