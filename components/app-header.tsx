@@ -21,11 +21,33 @@ export function AppHeader() {
   /* Chrome only materialises once the page moves. */
   const [scrolled, setScrolled] = useState(false);
 
+  /*
+   * The first read is deferred a frame on purpose. `scrollY` needs a clean
+   * layout to answer, and this effect runs in the same task as the commit that
+   * mounts the page — so reading it here forces a full synchronous style+layout
+   * of the tree that was just inserted. The start-up probe charged that single
+   * read ~15ms, the largest app-level cost in the frame that first paints the
+   * list (see docs/motion-budget.md). Inside a frame callback the layout is
+   * already clean, so the read costs nothing; a scroll-restored page is
+   * answered one frame later (imperceptible), and `false` is the right answer
+   * at the top either way.
+   *
+   * Scroll events coalesce into one read per frame for the same reason: a burst
+   * of them would otherwise force that same layout repeatedly.
+   */
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    let frame = 0;
+    const read = () => setScrolled(window.scrollY > 8);
+    const onScroll = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(read);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   return (
