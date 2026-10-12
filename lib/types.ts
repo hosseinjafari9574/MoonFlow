@@ -54,6 +54,25 @@ export interface Settings {
   soundEnabled: boolean;
 }
 
+/**
+ * A saved group of tasks — a routine. Applying one drops every title into the
+ * task list as an ordinary task, so nothing downstream needs to know routines
+ * exist.
+ */
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  /** Task titles, in the order they should appear in the list. */
+  titles: string[];
+  createdAt: number;
+}
+
+/** Draft input from the editor; trimmed and capped by the store on save. */
+export interface TemplateInput {
+  name: string;
+  titles: string[];
+}
+
 export interface NewTaskInput {
   title: string;
   priority?: Priority;

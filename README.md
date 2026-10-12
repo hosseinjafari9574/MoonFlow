@@ -74,6 +74,11 @@ npm run typecheck  # tsc --noEmit
   per task and overall.
 - **Tasks** — create, edit, delete, complete, plus optional priority and tags
   with tag filtering.
+- **Routines** — save the groups of tasks you repeat (a morning routine, a
+  weekly review) and add the whole group in one click. A routine is a name plus
+  its task titles; every title is added as an ordinary task, so nothing else in
+  the app has to know routines exist. The panel under the list creates, edits
+  and deletes them, with undo on delete and on apply.
 - **Stats & streak** — completed today, focus minutes today, current streak and
   a last-7-days focus chart.
 - **Sound effects** — synthesised WebAudio chimes (no assets), toggleable.
@@ -99,7 +104,7 @@ app/            layout, page shell, global styles + design tokens (@theme)
 components/     feature UI (list, focus mode, pomodoro, stats…) + ui/ (shadcn)
 hooks/          timer engine, global keyboard shortcuts, page visibility
 lib/            pure helpers (activity, format, sound, actions) + motion & tone systems
-store/          Zustand stores (todos, timer, transient UI)
+store/          Zustand stores (todos, timer, routines, transient UI)
 docs/           the mark spec (geometry, clearances, regeneration)
 ```
 
@@ -123,10 +128,10 @@ re-measure it, and which optimisations it already paid for are in
 
 ## Data & persistence
 
-Everything lives in `localStorage` under two keys (`cadence:todos:v1`,
-`cadence:timer:v1`). Those names predate the rename and stay frozen on purpose —
-renaming them would orphan existing local data. Upgrades are driven by the
-`version` field inside each payload instead.
+Everything lives in `localStorage` under three keys (`cadence:todos:v1`,
+`cadence:timer:v1`, `cadence:templates:v1`). Those names predate the rename and
+stay frozen on purpose — renaming them would orphan existing local data.
+Upgrades are driven by the `version` field inside each payload instead.
 
 Every hydrate runs through `lib/persist.ts`, whether the payload matches the
 current version, needs a migration, or predates versioning altogether. A stored
@@ -135,7 +140,10 @@ fields fall back to defaults, a missing task id is regenerated, an unknown
 timer mode or preset falls back to Classic focus, a running clock with no end
 stamp reads as paused, and a payload stamped with a *newer* version is
 normalised instead of thrown away. Only entries carrying no information at all
-(a task with no title, a day key that isn't a day key) are dropped.
+(a task with no title, a day key that isn't a day key, a routine with no tasks)
+are dropped. A routine's task titles survive duplication on purpose — repeating
+one is how a routine says "twice" — but they are capped like every other stored
+string.
 
 A running clock is the one piece of state the browser can freeze. A phone that
 locks its screen stops the timer's interval for the whole session, so the
