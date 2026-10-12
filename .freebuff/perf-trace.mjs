@@ -75,6 +75,9 @@ export function collectTrace(events) {
       worstCall = {
         ts: ev.ts,
         endTs: ev.ts + ev.dur,
+        /* Kept so the comparison above compares against a number; without it
+         * this was always false and "worst" meant "first". */
+        dur: ev.dur,
         durMs: Math.round((ev.dur / 1000) * 10) / 10,
         functionName: ev.args?.data?.functionName ?? null,
         url: ev.args?.data?.url ?? null,
