@@ -403,6 +403,32 @@ frames the departure is already inside budget on, and none of the one it is over
 The condition stays in the harness so the number can be re-taken; the app change
 does not.
 
+**Re-taken, and it does not reproduce.** The same six-run protocol — three valid
+runs per arm, off-screen Chrome, the harness's own controls clean in all nine —
+on the build at `d7cd658`, with the plain-path splice those six reports must have
+used (they carry `exitBisect: null`, so the committed harness, which can only put
+`contentHidden` inside `--exitBisect`, is not what produced them), puts all three
+arms in one place: baseline 7 frames > 33ms, p95 49.9ms, 49.9fps, max 82.4, 2 past
+50; ceiling, hidden from the first frame, 7, 50.0ms, 50.0fps, 66.7, 3; the 160ms
+arm 7, 49.9ms, 49.8fps, 83.2, 1. The timed arm's committed numbers came back to
+the decimal — and so did the baseline's, which is the finding: on this machine the
+unmodified build already reads like the committed "worse" arm. Across 38
+departures in the re-take (three arms, three bisect sessions, two probe runs) not
+one landed in the 16.8ms mode the ceiling recorded twice: 12 sat at p95 33.3–33.8,
+24 at 49.5–50.4, 2 at 66.6/68.9. The hide is live rather than assumed — a
+page-side probe two frames after the click reports `.departing` present,
+`matched: 8`, and the content's computed visibility `hidden` — and that run still
+dropped 9 frames, so it is the numbers that failed to reproduce, not the
+mechanism. The bisect did read the condition at p95 33.3–33.8 in 4/4 sessions
+against bases near 50, but `dialogNoTransform` — which the paragraph above records
+as moving nothing — moves the same numbers in 3 of those 4, so that row is not the
+plain-run separation either. Two things the re-take leaves open: the build is one
+merge and 20h newer than the one measured, and the shipped build's own three runs
+already contain `after-1` at p95 16.9ms — the ceiling's own median, with no hide at
+all. Until the six runs are re-taken on the commit's own tree, **6 → 3** frames
+and **33.4 → 16.8ms** should be read as unconfirmed: the decline may still be
+right, but it no longer rests on these numbers.
+
 The first candidate has now been priced as well. An `--exitBisect` condition
 that takes the arrival-only layers out of the tree — the veil container and the
 sweep, `matched: 2`, so it is provably the right elements — shaves about one
