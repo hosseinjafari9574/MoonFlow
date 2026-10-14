@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, Pause, Play, RotateCcw, SkipForward, X } from "lucide-react";
 
 import { currentStreak, getDay, sortTasks } from "@/lib/activity";
-import { TIMER_PRESETS, modeMeta, presetBlurb } from "@/lib/constants";
+import {
+  PRIORITY_META,
+  TIMER_PRESETS,
+  modeMeta,
+  presetBlurb,
+} from "@/lib/constants";
 import { formatClock, formatDuration } from "@/lib/format";
 import {
   EASE_IN_OUT,
@@ -27,6 +32,7 @@ import { usePageVisible } from "@/hooks/use-page-visible";
 import { useTodoStore } from "@/store/use-todo-store";
 import { useUiStore } from "@/store/use-ui-store";
 import { useTimerStore } from "@/store/use-timer-store";
+import { MoonFlowMark } from "@/components/moonflow-mark";
 import { ProgressRing } from "@/components/progress-ring";
 
 const MODE_COPY = {
@@ -35,15 +41,31 @@ const MODE_COPY = {
   long: { hint: "You've earned a longer pause." },
 } as const;
 
-/** Drifting specks — CSS driven, so the main thread stays free. */
-const PARTICLES = Array.from({ length: 16 }, (_, i) => ({
+/**
+ * The bright stars — the only ones that move on their own.
+ *
+ * Opacity-only, on their own clocks, eight of them. Everything else in the sky
+ * is one static raster (`.starfield` in app/globals.css), because a full-screen
+ * layer that twinkles is a full-screen layer that repaints.
+ */
+const TWINKLERS = Array.from({ length: 8 }, (_, i) => ({
   id: i,
-  left: (i * 53) % 100,
-  top: 18 + ((i * 37) % 74),
-  size: 1 + (i % 3) * 0.75,
-  duration: 12 + (i % 6) * 3.5,
-  delay: (i % 8) * 1.7,
-  drift: ((i % 5) - 2) * 14,
+  left: 5 + ((i * 61) % 88),
+  top: 7 + ((i * 41) % 80),
+  size: i % 3 === 0 ? 2.5 : 1.75,
+  duration: 5.5 + (i % 5) * 1.6,
+  delay: (i % 6) * 1.3,
+}));
+
+/** Drifting motes — CSS driven, so the main thread stays free. */
+const MOTES = Array.from({ length: 10 }, (_, i) => ({
+  id: i,
+  left: (i * 67) % 100,
+  top: 20 + ((i * 37) % 70),
+  size: 1 + (i % 2) * 0.6,
+  duration: 15 + (i % 5) * 3.5,
+  delay: (i % 7) * 1.9,
+  drift: ((i % 5) - 2) * 12,
 }));
 
 /** Radial burst directions for the completion celebration. */
@@ -67,6 +89,12 @@ const VEIL_TRANSITION = {
   ease: [EASE_OUT_EXPO, EASE_IN_OUT, EASE_OUT_EXPO],
 };
 
+/** Air between the progress ring and the orbit arc that circles it. */
+const ORBIT_GAP = 26;
+
+/** How much of the orbit the satellite's trail covers — a little under a third. */
+const ORBIT_TRAIL = 0.3;
+
 /*
  * A hidden start-up pre-warm of this tree used to live here: the overlay
  * mounted once at 1% opacity at app start, on the theory that its first commit
@@ -76,6 +104,109 @@ const VEIL_TRANSITION = {
  * `entry` max median 266ms with it against 250ms without). It was removed on
  * 2026-10-11; docs/motion-budget.md records the trial and the numbers.
  */
+
+/**
+ * Where the moon's light comes from, in percent of its own box. Its surface
+ * gradient and the axis its night side travels along are both derived from this
+ * one point, so the light never disagrees with itself.
+ */
+const MOON_LIGHT = { x: 34, y: 24 } as const;
+
+/**
+ * The unit vector from the light, through the disc: the way the night side
+ * slides. Away from the source, so the last of the light to go is the upper left
+ * — the limb the highlight sits on.
+ */
+const MOON_NIGHT_AXIS = (() => {
+  const dx = MOON_LIGHT.x / 100 - 0.5;
+  const dy = MOON_LIGHT.y / 100 - 0.5;
+  const length = Math.hypot(dx, dy);
+  return { x: -dx / length, y: -dy / length };
+})();
+
+/**
+ * The colour the disc's own fill and its night side share, so the seam between
+ * them can never be seen — the night side is the unlit moon, not a shadow drawn
+ * on top of one.
+ */
+const MOON_DARK = "#07080e";
+
+/**
+ * The sliver of moon that is lit even on a brand-new session. A moon that goes
+ * out entirely reads as the room's centrepiece having been switched off.
+ */
+const MOON_MIN_LIT = 0.06;
+
+/**
+ * How far the night-side disc has to slide, as a percentage of the moon's own
+ * width, for the *lit area* to be `lit` of the disc.
+ *
+ * Two equal discs offset by `k` leave a lune whose area is the disc less the lens
+ * they share; with `t = k / 2r` that lens is `2r²(acos t − t√(1−t²))`, so the lit
+ * fraction is `1 − (2/π)(acos t − t√(1−t²))` — rising from 0 at `t = 0` (the discs
+ * coincident) to 1 at `t = 1` (tangent), and with no closed-form inverse. Thirty
+ * bisections of a function this flat agree with the exact value to far under a
+ * pixel, at 5 Hz.
+ */
+function nightOffset(lit: number): number {
+  const target = Math.min(1, Math.max(0, lit));
+  let lo = 0;
+  let hi = 1;
+  for (let step = 0; step < 30; step += 1) {
+    const t = (lo + hi) / 2;
+    const lens = (2 / Math.PI) * (Math.acos(t) - t * Math.sqrt(1 - t * t));
+    if (1 - lens < target) lo = t;
+    else hi = t;
+  }
+  return ((lo + hi) / 2) * 100;
+}
+
+/** The phase glyph's disc, in its own 24-unit canvas. */
+const PHASE_RADIUS = 10;
+
+/**
+ * One moon phase, at the size of a session marker.
+ *
+ * The same construction the app's mark is built from (docs/mark.md) — a disc cut
+ * by an offset disc — and the same inversion the room's big moon uses, so the
+ * strip and the instrument are the same object at two scales. `lit` is the
+ * fraction of the disc that is lit. Colour comes from the parent: the body of the
+ * moon fades with it, which is what leaves a banked session and a pending one
+ * legible as the *same* phase, one amber and one grey.
+ */
+function MoonPhaseMark({ lit, className }: { lit: number; className?: string }) {
+  const maskId = `cycle-phase-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const bite = (nightOffset(lit) / 100) * PHASE_RADIUS * 2;
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={cn("size-3.5", className)}>
+      <mask id={maskId}>
+        <rect width="24" height="24" fill="#000" />
+        <circle cx="12" cy="12" r={PHASE_RADIUS} fill="#fff" />
+        <circle
+          cx={12 + MOON_NIGHT_AXIS.x * bite}
+          cy={12 + MOON_NIGHT_AXIS.y * bite}
+          r={PHASE_RADIUS}
+          fill="#000"
+        />
+      </mask>
+      {/* The unlit disc: a phase is a moon, not a wedge. */}
+      <circle
+        cx="12"
+        cy="12"
+        r={PHASE_RADIUS}
+        fill="currentColor"
+        fillOpacity={0.16}
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r={PHASE_RADIUS}
+        fill="currentColor"
+        mask={`url(#${maskId})`}
+      />
+    </svg>
+  );
+}
 
 interface Beat {
   id: number;
@@ -100,7 +231,7 @@ export function FocusMode() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
+  const blockRef = useRef<HTMLDivElement>(null);
   const celebrationTimer = useRef<number | null>(null);
   const seenPhaseEvent = useRef(phaseEvent?.id ?? 0);
 
@@ -124,7 +255,7 @@ export function FocusMode() {
   const sessionWord = presetMeta.sessionWord;
   const progress = getProgress(mode, remainingMs, preset);
   /*
-   * How much the halo's own gradient brightens as the session fills up.
+   * How much the moon's atmosphere brightens as the session fills up.
    *
    * Quantised to 5% steps on purpose: this is a *style*, so a new value is a
    * repaint, and `progress` changes on every 200ms tick — twenty-one steps over
@@ -141,7 +272,7 @@ export function FocusMode() {
   const today = getDay(activity);
   const streak = currentStreak(activity);
 
-  const eyebrow =
+  const phaseLabel =
     mode === "focus"
       ? preset === "deep"
         ? "Deep work"
@@ -149,10 +280,61 @@ export function FocusMode() {
       : modeMeta(preset, mode).label;
 
   /*
+   * What the phase line says. Focus counts the sessions in the cycle, so the
+   * room tells you where you are without a second widget; a break prefers the
+   * instruction, which is the only thing that matters during one.
+   */
+  const phaseDetail =
+    mode === "focus"
+      ? `${sessionWord} ${Math.min(sessions + 1, longBreakAfter)} of ${longBreakAfter}`
+      : null;
+  const taskMeta =
+    mode === "focus"
+      ? [
+          task ? `${PRIORITY_META[task.priority].label} priority` : null,
+          task && task.pomodoros > 0 ? `${task.pomodoros} done` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : MODE_COPY[mode].hint;
+
+  /* The clock, split so the minutes can carry the weight and the seconds sit back. */
+  const [clockMinutes, clockSeconds] = formatClock(remainingMs).split(":");
+
+  /* The moon's own geometry: a disc at 74% of the ring, with air all round it. */
+  const moonInset = Math.round(ringSize * 0.13);
+  /*
+   * And its own progress, from the same `progress` the arc is drawn from: the
+   * lit fraction of its disc. Floored so a brand-new session is a hairline
+   * crescent rather than a hole in the sky, and rising to a full face as the
+   * session fills. A paused clock has a progress that does not move, so the moon
+   * freezes with it.
+   */
+  const moonLit = MOON_MIN_LIT + (1 - MOON_MIN_LIT) * progress;
+  /* Percent of its own width the night side has slid, along the light's axis. */
+  const moonNight = nightOffset(moonLit);
+  const nightX = (moonNight * MOON_NIGHT_AXIS.x).toFixed(2);
+  const nightY = (moonNight * MOON_NIGHT_AXIS.y).toFixed(2);
+  /*
+   * The wash lifts a little as the moon fills. Quantised to 5% steps for the same
+   * reason the halo's is: a style change is a paint, and `progress` moves on
+   * every tick. The night side's travel is a *transform* on a promoted layer, so
+   * that one is left continuous — it costs nothing.
+   */
+  const moonWash = 0.86 + (Math.round(moonLit * 20) / 20) * 0.14;
+  const orbitSize = ringSize + ORBIT_GAP * 2;
+  const orbitRadius = orbitSize / 2 - 1;
+  const orbitCircumference = 2 * Math.PI * orbitRadius;
+  const orbitTrail = orbitCircumference * ORBIT_TRAIL;
+  const orbitAngle = Math.PI * 2 * ORBIT_TRAIL;
+  const satelliteX = orbitSize / 2 + orbitRadius * Math.cos(orbitAngle);
+  const satelliteY = orbitSize / 2 + orbitRadius * Math.sin(orbitAngle);
+
+  /*
    * Size the ring from the room it actually has, not from the viewport: the
    * screen never scrolls, so the instrument has to fit the stage at every
-   * height. The stage's own box doesn't depend on the ring, so measure → set
-   * settles in one pass and can't loop.
+   * height. The stage's own box doesn't depend on the ring — only on the title
+   * block above it — so measure → set settles in one pass and can't loop.
    */
   useEffect(() => {
     if (!open) return;
@@ -160,15 +342,21 @@ export function FocusMode() {
     if (!stage) return;
     const measure = () => {
       const { width, height } = stage.getBoundingClientRect();
-      const titleHeight = titleRef.current?.getBoundingClientRect().height ?? 76;
-      // Eyebrow block (~40) plus the two stage gaps (~48) and a little air.
-      const room = Math.min(width - 8, height - titleHeight - 120);
+      const blockHeight = blockRef.current?.getBoundingClientRect().height ?? 148;
+      /*
+       * The orbit needs ORBIT_GAP of air on every side, and the stage's own gap
+       * plus padding (and the moon's outer glow) want ~96px of the height.
+       */
+      const room = Math.min(
+        width - ORBIT_GAP * 2 - 12,
+        height - blockHeight - 96,
+      );
       setRingSize(Math.max(148, Math.min(384, Math.round(room))));
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(stage);
-    if (titleRef.current) observer.observe(titleRef.current);
+    if (blockRef.current) observer.observe(blockRef.current);
     /*
      * The first measure can land before the stage's box is final (web font,
      * viewport units), and a ResizeObserver only reports further *changes* — so
@@ -209,9 +397,10 @@ export function FocusMode() {
   }, [open]);
 
   /*
-   * The departure freezes the scene's eternal animations (the breathing rings,
-   * the drifting specks, the live dot) for the length of the fade — see
-   * `.departing` in app/globals.css for why the window wants it.
+   * The departure freezes the scene's eternal animations (the breathing orbital
+   * shells, the twinkling stars, the drifting motes, the satellite's orbit, the
+   * live dot) for the length of the fade — see `.departing` in app/globals.css
+   * for why the window wants it.
    *
    * The class cannot come from the render. The tree AnimatePresence keeps
    * mounted during an exit is the one from *before* the store flipped, so every
@@ -238,7 +427,7 @@ export function FocusMode() {
   useEffect(() => {
     if (!open) return;
     setAnnouncement(
-      `${eyebrow}. ${formatClock(remainingMs)} ${running ? "remaining" : "ready"}.`,
+      `${phaseLabel}. ${formatClock(remainingMs)} ${running ? "remaining" : "ready"}.`,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode, sessions, running]);
@@ -340,7 +529,7 @@ export function FocusMode() {
   }
 
   const iconBtn =
-    "grid size-11 cursor-pointer place-items-center rounded-xl border border-white/12 bg-white/[0.04] text-white/70 transition-colors duration-200 hover:border-white/25 hover:bg-white/[0.09] hover:text-white focus-visible:outline-2 focus-visible:outline-primary";
+    "grid size-11 cursor-pointer place-items-center rounded-full text-white/60 transition-colors duration-200 hover:bg-white/[0.07] hover:text-white focus-visible:outline-2 focus-visible:outline-primary";
 
   return (
     <AnimatePresence>
@@ -360,27 +549,33 @@ export function FocusMode() {
            * (`overscroll-none` also stops rubber-banding on touch), and the
            * column inside it is a three-row flex that owns the whole height.
            */
-          className="fixed inset-0 z-50 overflow-hidden overscroll-none bg-[#070709] outline-none"
+          className="fixed inset-0 z-50 overflow-hidden overscroll-none bg-[#040509] outline-none"
         >
           {/**
            * Atmosphere, in cheap layers — see docs/motion-budget.md.
-           * The base is rastered once per mount and never transformed: the
-           * grain is an feTurbulence tile and the vignette a full-viewport
-           * gradient, so scaling either one re-rasters it every frame.
+           *
+           * This is the room: deep space, a starfield, one galactic band, two
+           * breathing orbital shells and a vignette. Nothing in this layer is
+           * ever transformed — it is rastered once per mount and left alone, so
+           * the whole sky costs one paint. The moving parts live above it.
            */}
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
             aria-hidden
           >
-            <div className="dot-grid absolute inset-0 opacity-40" />
-            {/* Breathing rings live here, not in the push-in: a scale animation
-                on two 560–760px rasters is per-frame raster cost for no gain. */}
-            <div className="absolute left-1/2 top-1/2 size-[min(760px,120vw)] -translate-x-1/2 -translate-y-1/2 animate-breathe rounded-full border border-white/[0.055]" />
-            <div className="absolute left-1/2 top-1/2 size-[min(560px,90vw)] -translate-x-1/2 -translate-y-1/2 animate-breathe rounded-full border border-white/[0.045] [animation-delay:-2s]" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,transparent_28%,rgba(4,4,6,0.72)_100%)]" />
+            {/* Deep space: cool at the top, falling to near-black at the feet. */}
+            <div className="absolute inset-0 bg-[radial-gradient(125%_92%_at_50%_-16%,#0c1022_0%,#070812_46%,#030407_100%)]" />
+            {/* The field — one static raster of eight dot layers. */}
+            <div className="starfield absolute inset-0" />
+            {/* One direction to the sky, masked so it never reads as a stripe. */}
+            <div className="galaxy absolute inset-0" />
+            {/* Orbital shells. They breathe; they never move the instrument. */}
+            <div className="absolute left-1/2 top-1/2 size-[min(760px,120vw)] -translate-x-1/2 -translate-y-1/2 animate-breathe rounded-full border border-white/[0.05]" />
+            <div className="absolute left-1/2 top-1/2 size-[min(560px,90vw)] -translate-x-1/2 -translate-y-1/2 animate-breathe rounded-full border border-white/[0.04] [animation-delay:-2s]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_44%,transparent_22%,rgba(2,3,6,0.8)_100%)]" />
           </div>
 
-          {/* Above the base, below the specks: the aurora only ever translates. */}
+          {/* Above the base, below the stars: the nebula only ever translates. */}
           <motion.div
             variants={focusAurora}
             className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -388,7 +583,7 @@ export function FocusMode() {
           >
             <AnimatePresence>
               <motion.div
-                key={`aurora-${toneKey}`}
+                key={`nebula-${toneKey}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -402,62 +597,81 @@ export function FocusMode() {
                  * first paints (measured — see docs/motion-budget.md).
                  */}
                 <div
-                  className="drift-a absolute inset-x-0 top-[-20%] mx-auto h-[560px] w-[760px] max-w-[130vw] rounded-full"
+                  className="drift-a absolute inset-x-0 top-[-22%] mx-auto h-[600px] w-[820px] max-w-[132vw] rounded-full"
                   style={{
                     background: `radial-gradient(closest-side, rgba(${tone.rgb},${
-                      isFocus ? 0.3 : 0.11
-                    }), rgba(${tone.rgb},${isFocus ? 0.14 : 0.05}) 45%, transparent 100%)`,
+                      isFocus ? 0.26 : 0.1
+                    }), rgba(${tone.rgb},${isFocus ? 0.12 : 0.045}) 45%, transparent 100%)`,
                   }}
                 />
                 <div
-                  className="drift-b absolute -bottom-[28%] -right-[14%] size-[520px] max-w-[120vw] rounded-full"
+                  className="drift-b absolute -bottom-[30%] -right-[14%] size-[540px] max-w-[120vw] rounded-full"
                   style={{
                     background: `radial-gradient(closest-side, rgba(${tone.rgb},${
-                      isFocus ? 0.22 : 0.08
-                    }), rgba(${tone.rgb},${isFocus ? 0.1 : 0.04}) 50%, transparent 100%)`,
+                      isFocus ? 0.2 : 0.075
+                    }), rgba(${tone.rgb},${isFocus ? 0.09 : 0.035}) 50%, transparent 100%)`,
                   }}
                 />
               </motion.div>
             </AnimatePresence>
-
           </motion.div>
 
-          {/* The settle of the speck field — translate and fade, never a scale. */}
+          {/* The stars — the twinkle and the motes settle in together. */}
           <motion.div
             variants={focusLens}
             className="pointer-events-none absolute inset-0 overflow-hidden"
             aria-hidden
           >
             {pageVisible &&
-              !reduceMotion &&
-              PARTICLES.map((particle) => (
+              TWINKLERS.map((star) => (
                 <span
-                  key={particle.id}
+                  key={`star-${star.id}`}
+                  className={cn(
+                    "absolute rounded-full bg-ivory",
+                    !reduceMotion && "twinkle",
+                  )}
+                  style={
+                    {
+                      left: `${star.left}%`,
+                      top: `${star.top}%`,
+                      width: star.size,
+                      height: star.size,
+                      opacity: 0.55,
+                      "--twinkle-duration": `${star.duration}s`,
+                      "--twinkle-delay": `${star.delay}s`,
+                    } as CSSProperties
+                  }
+                />
+              ))}
+
+            {pageVisible &&
+              !reduceMotion &&
+              MOTES.map((mote) => (
+                <span
+                  key={`mote-${mote.id}`}
                   className={cn(
                     "float-up absolute rounded-full",
                     isFocus ? "bg-primary-soft/70" : "bg-ivory/55",
                   )}
                   style={
                     {
-                      left: `${particle.left}%`,
-                      top: `${particle.top}%`,
-                      width: particle.size,
-                      height: particle.size,
-                      "--float-duration": `${particle.duration}s`,
-                      "--float-delay": `${particle.delay}s`,
-                      "--drift": `${particle.drift}px`,
+                      left: `${mote.left}%`,
+                      top: `${mote.top}%`,
+                      width: mote.size,
+                      height: mote.size,
+                      "--float-duration": `${mote.duration}s`,
+                      "--float-delay": `${mote.delay}s`,
+                      "--drift": `${mote.drift}px`,
                     } as CSSProperties
                   }
                 />
               ))}
-
-
           </motion.div>
 
           {/* Film grain last, and outside the push-in so it never re-rasters. */}
           <div
             aria-hidden
-            className="grain pointer-events-none absolute inset-0 opacity-[0.05]"
+            className="grain pointer-events-none absolute inset-0 opacity-[0.045]"
           />
 
           {/*
@@ -472,13 +686,13 @@ export function FocusMode() {
             className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
           >
             <motion.span
-              className="absolute inset-x-0 top-0 h-[30vh] border-b border-white/[0.06] bg-gradient-to-b from-[#0d0d14] via-[#0a0a10]/80 to-transparent"
+              className="absolute inset-x-0 top-0 h-[30vh] border-b border-white/[0.06] bg-gradient-to-b from-[#0b0e1d] via-[#080a13]/80 to-transparent"
               initial={{ y: "-102%" }}
               animate={{ y: ["-102%", "0%", "0%", "-102%"] }}
               transition={VEIL_TRANSITION}
             />
             <motion.span
-              className="absolute inset-x-0 bottom-0 h-[26vh] border-t border-white/[0.06] bg-gradient-to-t from-[#0d0d14] via-[#0a0a10]/80 to-transparent"
+              className="absolute inset-x-0 bottom-0 h-[26vh] border-t border-white/[0.06] bg-gradient-to-t from-[#0b0e1d] via-[#080a13]/80 to-transparent"
               initial={{ y: "102%" }}
               animate={{ y: ["102%", "0%", "0%", "102%"] }}
               transition={VEIL_TRANSITION}
@@ -502,41 +716,43 @@ export function FocusMode() {
           <motion.div
             variants={focusStage}
             /*
-             * `overflow-x-clip` trims the few pixels the phase shockwave and
-             * the celebration sparks spend outside the column — horizontally
-             * only, so the ring's glow keeps its vertical bloom. `clip` (not
-             * `hidden`) adds no scroll port.
+             * `overflow-x-clip` trims the few pixels the orbit, the phase
+             * shockwave and the celebration sparks spend outside the column —
+             * horizontally only, so the moon's glow keeps its vertical bloom.
+             * `clip` (not `hidden`) adds no scroll port.
              */
             className="relative z-20 flex h-full w-full flex-col overflow-x-clip px-5 pb-5 pt-5 sm:px-8 sm:pb-6 sm:pt-6"
           >
-            {/* Top bar */}
+            {/* Top bar: the app's own instrument, the rhythm, and the way out. */}
             <div className="flex flex-none items-center justify-between gap-3">
-              <span className="flex min-w-0 items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">
+              <span className="flex min-w-0 items-center gap-3">
+                <MoonFlowMark className="size-5 shrink-0 text-ivory/60" />
                 <span
-                  aria-hidden
-                  className={cn(
-                    "size-1.5 shrink-0 rounded-full",
-                    running && "animate-pulse-soft",
-                  )}
-                  style={{
-                    background: running
-                      ? tone.solid
-                      : "rgba(244,241,234,0.32)",
-                  }}
-                />
-                <span className="truncate">Focus mode</span>
-                <span
-                  className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 font-mono text-[10px] normal-case tracking-normal text-white/45 sm:inline-block"
+                  className="hidden min-w-0 items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.03] py-1 pl-2.5 pr-3 sm:inline-flex"
                   title={`${presetMeta.label} preset — ${presetBlurb(presetMeta)}`}
                 >
-                  {presetMeta.label} · {presetMeta.durations.focus / 60_000} /{" "}
-                  {presetMeta.durations.short / 60_000}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-1.5 shrink-0 rounded-full",
+                      running && "animate-pulse-soft",
+                    )}
+                    style={{
+                      background: running
+                        ? tone.solid
+                        : "rgba(244,241,234,0.3)",
+                    }}
+                  />
+                  <span className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-white/45">
+                    {presetMeta.label} · {presetMeta.durations.focus / 60_000} /{" "}
+                    {presetMeta.durations.short / 60_000}
+                  </span>
                 </span>
               </span>
               <button
                 type="button"
                 onClick={exit}
-                className="flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/65 transition-colors duration-200 hover:bg-white/[0.09] hover:text-white focus-visible:outline-2 focus-visible:outline-primary"
+                className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white/65 transition-colors duration-200 hover:bg-white/[0.09] hover:text-white focus-visible:outline-2 focus-visible:outline-primary"
                 aria-label="Exit focus mode"
               >
                 <X className="size-4" />
@@ -546,63 +762,78 @@ export function FocusMode() {
               </button>
             </div>
 
-            {/* Stage: the task, then the instrument. */}
+            {/* Stage: the task, a rule, then the instrument. */}
             <div
               ref={stageRef}
-              className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-3 text-center sm:gap-6"
+              className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-5 py-3 text-center sm:gap-7"
             >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`eyebrow-${toneKey}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.34, delay: 0.3, ease: EASE_OUT_EXPO }}
-                  className="flex flex-none flex-col items-center gap-2 [@media(max-height:520px)]:hidden"
-                >
-                  <span
+              <div
+                ref={blockRef}
+                className="flex flex-none flex-col items-center gap-3"
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={`phase-${toneKey}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.34, delay: 0.3, ease: EASE_OUT_EXPO }}
                     className={cn(
-                      "text-[11px] font-bold uppercase tracking-[0.28em]",
-                      isFocus ? "text-primary-soft glow-accent" : "text-ivory glow-ivory",
+                      "text-[10.5px] font-bold uppercase tracking-[0.3em] [@media(max-height:520px)]:hidden",
+                      isFocus
+                        ? "text-primary-soft glow-accent"
+                        : "text-ivory glow-ivory",
                     )}
                   >
-                    {eyebrow}
-                  </span>
-                  <span className="text-caption text-white/45 [@media(max-height:640px)]:hidden">
-                    {mode === "focus"
-                      ? `${sessionWord} ${Math.min(sessions + 1, longBreakAfter)} of ${longBreakAfter} · ${MODE_COPY[mode].hint}`
-                      : MODE_COPY[mode].hint}
-                  </span>
-                </motion.div>
-              </AnimatePresence>
+                    {phaseLabel}
+                    {phaseDetail && (
+                      <span className="text-white/35">
+                        {" · "}
+                        {phaseDetail}
+                      </span>
+                    )}
+                  </motion.span>
+                </AnimatePresence>
 
-              <AnimatePresence mode="wait">
-                <motion.h1
-                  key={task.id}
-                  ref={titleRef}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -14 }}
-                  transition={{ duration: 0.42, delay: 0.4, ease: EASE_OUT_EXPO }}
-                  className="line-clamp-2 max-w-[18ch] flex-none text-balance text-[clamp(1.4rem,calc(3.4vh_+_0.9rem),2.6rem)] font-semibold leading-[1.12] tracking-[-0.02em] text-white"
-                >
-                  {task.title}
-                </motion.h1>
-              </AnimatePresence>
+                <AnimatePresence mode="wait">
+                  <motion.h1
+                    key={task.id}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -14 }}
+                    transition={{ duration: 0.42, delay: 0.4, ease: EASE_OUT_EXPO }}
+                    className="line-clamp-2 max-w-[22ch] text-balance text-[clamp(1.5rem,calc(3.2vh_+_1rem),2.9rem)] font-medium leading-[1.1] tracking-[-0.015em] text-white/95"
+                  >
+                    {task.title}
+                  </motion.h1>
+                </AnimatePresence>
+
+                <p className="text-[11px] tracking-[0.02em] text-white/40 [@media(max-height:640px)]:hidden">
+                  {taskMeta}
+                </p>
+
+                <span aria-hidden className="hairline w-24 opacity-70" />
+              </div>
 
               {/*
-               * The instrument arrives behind the veils with opacity and a
-               * short rise — no filter and no scale, because the ring's arc is
-               * drop-shadowed and animating either one re-rasterises it on
-               * every frame of the entry (docs/motion-budget.md).
+               * The instrument: a satellite orbit around a moon, with the
+               * progress ring as the dial. It arrives behind the veils with
+               * opacity and a short rise — no filter and no scale, because the
+               * ring's arc is drop-shadowed and animating either one
+               * re-rasterises it on every frame of the entry
+               * (docs/motion-budget.md).
                *
                * `will-change` is normally left to Framer, but this box keeps
                * moving long after the arrival: the arc, the comet head and the
                * graduation ticks retick every 200ms for the whole session. With
-               * no layer of its own those repaints invalidate the stage layer
+               * no layer of its own those repaints invalidated the stage layer
                * (measured: 93 repaints of 1863×870 in one arrival); promoting
                * just this box halved the arrival's dropped frames in a paired
                * A/B (20 → 8).
+               *
+               * The halo is deliberately the *first* child: it is the box the
+               * visual check samples for the breath, and it must stay a
+               * radial-gradient that only ever changes opacity.
                */}
               <motion.div
                 initial={{ opacity: 0, y: 18 }}
@@ -611,8 +842,8 @@ export function FocusMode() {
                 className="relative flex-none will-change-transform"
               >
                 {/*
-                 * Halo that breathes while the timer runs and brightens with
-                 * progress. Both of those are load-bearing details:
+                 * The moonlight: a halo that breathes while the timer runs and
+                 * brightens with progress. Both of those are load-bearing:
                  *
                  * 1. The breath is brightness only. It used to scale (1 →
                  *    1.035), which left a forever-moving transform on a
@@ -622,27 +853,25 @@ export function FocusMode() {
                  * 2. Its animated targets are *constants*. They used to be
                  *    built from `progress`, and a Framer target that changes
                  *    restarts the animation — so on every 200ms tick the breath
-                 *    started over and never got anywhere: measured in the phone
-                 *    viewport, its opacity moved 0.500 → 0.504 across 4.5s while
-                 *    the CSS-driven ring beside it completed its whole 8s loop.
-                 *    That stutter around the ring is the shimmer the Android
-                 *    build showed. Progress moves into this element's own
-                 *    gradient instead — a style: a paint, never a restart.
+                 *    started over and never got anywhere (measured in the phone
+                 *    viewport: opacity 0.500 → 0.504 across 4.5s). Progress
+                 *    moves into this element's own gradient instead — a style:
+                 *    a paint, never a restart.
                  */}
                 <motion.div
                   aria-hidden
-                  className="pointer-events-none absolute inset-3 rounded-full"
+                  className="pointer-events-none absolute inset-4 rounded-full"
                   style={{
                     background: `radial-gradient(circle, rgba(${tone.rgb},${
-                      (isFocus ? 0.3 : 0.2) * haloGlow
+                      (isFocus ? 0.28 : 0.18) * haloGlow
                     }), rgba(${tone.rgb},${
-                      (isFocus ? 0.13 : 0.09) * haloGlow
-                    }) 40%, transparent 74%)`,
+                      (isFocus ? 0.12 : 0.08) * haloGlow
+                    }) 42%, transparent 74%)`,
                   }}
                   animate={
                     running && !reduceMotion
-                      ? { opacity: [0.5, 0.95] }
-                      : { opacity: 0.42 + progress * 0.3 }
+                      ? { opacity: [0.45, 0.95] }
+                      : { opacity: 0.4 + progress * 0.3 }
                   }
                   transition={
                     running && !reduceMotion
@@ -655,6 +884,118 @@ export function FocusMode() {
                       : { duration: 0.6 }
                   }
                 />
+
+                {/*
+                 * The moon, at the centre of its own dial — the composition the
+                 * app's mark is built from (docs/mark.md), at full size, and the
+                 * second reading of the same number the arc carries: its lit
+                 * *fraction* is the session's elapsed fraction, so it waxes from
+                 * a hairline crescent to a full face across the session.
+                 *
+                 * It is a *dark* sphere lit from the upper left. The light is one
+                 * gradient on the disc; the night side is a disc of the room's
+                 * own dark, the same size as the moon, sliding along the light's
+                 * axis until it clears the disc entirely. Both halves are free to
+                 * move on every 200ms tick — a transform on a promoted layer and
+                 * an opacity quantised to 5% steps — where a masked shape would
+                 * repaint the whole disc 7500 times over a session
+                 * (docs/motion-budget.md).
+                 */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute overflow-hidden rounded-full"
+                  style={{ inset: moonInset, background: MOON_DARK }}
+                >
+                  {/* The sphere's own light, brightest toward its source. */}
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background: `radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, rgba(236,240,255,0.13), rgba(139,153,255,0.05) 46%, rgba(96,110,200,0.028) 100%)`,
+                      opacity: moonWash,
+                      transition: reduceMotion ? "none" : "opacity 240ms linear",
+                    }}
+                  />
+                  {/* The night side, sliding off the disc as the session fills. */}
+                  <div
+                    className="absolute inset-0 rounded-full will-change-transform"
+                    style={{
+                      background: MOON_DARK,
+                      transform: `translate(${nightX}%, ${nightY}%)`,
+                      transition: reduceMotion ? "none" : "transform 240ms linear",
+                    }}
+                  />
+                </div>
+
+                {/*
+                 * Form, above the light: the limb's hairline, the rim light
+                 * along the top and the falloff to the lower right. It carries no
+                 * fill of its own, so the moon keeps its silhouette at every
+                 * phase — a new moon is still a moon.
+                 */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute rounded-full"
+                  style={{
+                    inset: moonInset,
+                    boxShadow:
+                      "inset 0 0 0 1px rgba(244,241,234,0.05), inset 0 1px 0 rgba(244,241,234,0.1), inset -16px -20px 54px rgba(0,0,0,0.55)",
+                  }}
+                />
+
+                {/* One satellite on a slow orbit, its trail fading behind it. */}
+                <div
+                  aria-hidden
+                  className="orbit-spin pointer-events-none absolute"
+                  style={{ inset: -ORBIT_GAP }}
+                >
+                  <svg
+                    width={orbitSize}
+                    height={orbitSize}
+                    viewBox={`0 0 ${orbitSize} ${orbitSize}`}
+                    className="absolute inset-0"
+                  >
+                    <defs>
+                      <linearGradient
+                        id={`orbit-trail-${toneKey}`}
+                        x1="1"
+                        y1="0.05"
+                        x2="0.1"
+                        y2="0.9"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor={tone.soft}
+                          stopOpacity="0.05"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor={tone.soft}
+                          stopOpacity="0.32"
+                        />
+                      </linearGradient>
+                    </defs>
+                    <circle
+                      cx={orbitSize / 2}
+                      cy={orbitSize / 2}
+                      r={orbitRadius}
+                      fill="none"
+                      stroke={`url(#orbit-trail-${toneKey})`}
+                      strokeWidth={1.25}
+                      strokeLinecap="round"
+                      strokeDasharray={`${orbitTrail} ${
+                        orbitCircumference - orbitTrail
+                      }`}
+                    />
+                    <circle
+                      cx={satelliteX}
+                      cy={satelliteY}
+                      r={1.9}
+                      fill={tone.soft}
+                      opacity={0.8}
+                    />
+                  </svg>
+                </div>
+
                 {/* One-shot shockwave whenever the session phase changes */}
                 <motion.span
                   key={`shock-${toneKey}`}
@@ -669,49 +1010,37 @@ export function FocusMode() {
                 <ProgressRing
                   progress={progress}
                   size={ringSize}
-                  strokeWidth={ringSize < 200 ? 5 : isFocus ? 7 : 6}
+                  strokeWidth={ringSize < 200 ? 4 : isFocus ? 6 : 5}
                   tone={toneKey}
                   ticks={{ total: minutes, majorEvery: 5 }}
                 >
-                  <div className="grid place-items-center gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/40">
+                  <div className="grid place-items-center gap-2">
+                    <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/40">
                       {/* A clock that has never run is *ready*, not paused. */}
                       {running ? "Remaining" : fresh ? "Ready" : "Paused"}
                     </span>
                     <motion.span
                       key={mode}
                       role="timer"
-                      initial={{ opacity: 0, y: 8, scale: 0.92 }}
+                      initial={{ opacity: 0, y: 8, scale: 0.94 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
                       style={{
-                        fontSize: `clamp(1.9rem, ${Math.round(ringSize * 0.225)}px, 5rem)`,
+                        fontSize: `clamp(2.1rem, ${Math.round(
+                          ringSize * 0.235,
+                        )}px, 5.25rem)`,
                       }}
                       className={cn(
-                        "font-mono font-medium leading-none tracking-[-0.04em] tabular-nums",
-                        "text-white",
+                        "font-mono font-normal leading-none tracking-[-0.045em] tabular-nums",
                         isFocus
-                          ? "[text-shadow:0_0_48px_rgba(75,98,255,0.4)]"
-                          : "[text-shadow:0_0_48px_rgba(232,226,214,0.3)]",
+                          ? "[text-shadow:0_0_56px_rgba(75,98,255,0.4)]"
+                          : "[text-shadow:0_0_56px_rgba(232,226,214,0.3)]",
                       )}
                     >
-                      {formatClock(remainingMs)}
+                      <span className="text-white">{clockMinutes}</span>
+                      {/* The seconds are the detail, not the readout. */}
+                      <span className="text-white/35">:{clockSeconds}</span>
                     </motion.span>
-                    <span
-                      className={cn(
-                        "mt-1 flex items-center gap-1.5 text-[11px] font-medium",
-                        isFocus ? "text-primary-soft" : "text-ivory/85",
-                        ringSize < 190 && "hidden",
-                      )}
-                    >
-                      {task.pomodoros > 0 && (
-                        <>
-                          {task.pomodoros} done
-                          <span className="text-white/25">·</span>
-                        </>
-                      )}
-                      {task.priority} priority
-                    </span>
                   </div>
                 </ProgressRing>
 
@@ -779,16 +1108,16 @@ export function FocusMode() {
             <div className="flex flex-none flex-col items-center gap-3 sm:gap-4">
               <motion.div
                 variants={focusItem}
-                className="flex flex-wrap items-center justify-center gap-3"
+                className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3"
               >
                 <button
                   type="button"
                   onClick={() => useTimerStore.getState().toggle()}
-                  className="flex h-12 min-w-[172px] cursor-pointer items-center justify-center gap-2.5 rounded-2xl px-7 text-sm font-bold transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-primary"
+                  className="flex h-14 min-w-[176px] cursor-pointer items-center justify-center gap-2.5 rounded-full px-8 text-sm font-semibold tracking-[0.01em] transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-primary"
                   style={{
-                    background: tone.solid,
+                    background: `linear-gradient(180deg, ${tone.from} 0%, ${tone.solid} 58%, ${tone.to} 100%)`,
                     color: isFocus ? "#ffffff" : "#0a0a0b",
-                    boxShadow: `0 22px 54px -22px rgba(${tone.rgb},0.95)`,
+                    boxShadow: `0 24px 60px -26px rgba(${tone.rgb},0.95), inset 0 1px 0 rgba(255,255,255,0.26)`,
                   }}
                   aria-label={
                     running ? "Pause timer" : fresh ? "Start timer" : "Resume timer"
@@ -809,14 +1138,14 @@ export function FocusMode() {
                   type="button"
                   onClick={handleComplete}
                   disabled={task.completed}
-                  className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.05] px-6 text-sm font-semibold text-white/85 transition-colors duration-200 hover:border-ivory/50 hover:bg-ivory/10 hover:text-white focus-visible:outline-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-60"
+                  className="flex h-14 cursor-pointer items-center justify-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-6 text-sm font-semibold text-white/85 transition-colors duration-200 hover:border-ivory/40 hover:bg-ivory/10 hover:text-white focus-visible:outline-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-60"
                   aria-label={`Complete “${task.title}”`}
                 >
                   <Check className="size-4" />
                   {task.completed ? "Completed" : "Complete"}
                 </button>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.025] p-1.5">
                   <button
                     type="button"
                     onClick={() => useTimerStore.getState().skip()}
@@ -848,21 +1177,29 @@ export function FocusMode() {
                   role="img"
                   aria-label={`${sessions} of ${longBreakAfter} focus ${sessionWord.toLowerCase()}s completed`}
                 >
+                  {/*
+                   * A cycle's four sessions as four moon phases: even quarters of
+                   * the disc — crescent, half, gibbous, full — so the strip
+                   * reads as the cycle's own month. One banked session is one
+                   * phase further through it, and the full moon at the end of the
+                   * row is the one that buys the long break. Four identical dots
+                   * said how many; four phases say how far.
+                   */}
                   {Array.from({ length: longBreakAfter }).map((_, index) => (
-                    <motion.span
+                    <MoonPhaseMark
                       key={index}
-                      animate={{
-                        width: index < sessions ? 30 : 16,
-                        backgroundColor:
-                          index < sessions
-                            ? "rgba(233,184,114,1)"
-                            : "rgba(244,241,234,0.16)",
-                      }}
-                      transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+                      lit={(index + 1) / longBreakAfter}
+                      /*
+                       * Two states, not three: the eyebrow above already says
+                       * which session this is ("Session 2 of 4"), so the row
+                       * only has to say how many are banked. A session in
+                       * progress is a moon not yet lit.
+                       */
                       className={cn(
-                        "h-1.5 rounded-full",
-                        index < sessions &&
-                          "shadow-[0_0_12px_rgba(233,184,114,0.5)]",
+                        "transition-[color,filter] duration-500",
+                        index < sessions
+                          ? "text-achievement drop-shadow-[0_0_5px_rgba(233,184,114,0.6)]"
+                          : "text-ivory/35",
                       )}
                     />
                   ))}
@@ -960,7 +1297,12 @@ export function FocusMode() {
                     className="grid size-14 place-items-center rounded-full"
                     style={{
                       background: beat.kind === "cycle" ? "#e9b872" : tone.solid,
-                      color: beat.kind === "cycle" ? "#1b1408" : isFocus ? "#ffffff" : "#0a0a0b",
+                      color:
+                        beat.kind === "cycle"
+                          ? "#1b1408"
+                          : isFocus
+                            ? "#ffffff"
+                            : "#0a0a0b",
                       boxShadow: `0 20px 60px -20px rgba(${
                         beat.kind === "cycle" ? "233,184,114" : tone.rgb
                       },0.95)`,

@@ -46,16 +46,27 @@ npm run typecheck  # tsc --noEmit
 
 ## Features
 
-- **Focus Mode** — a full-screen, distraction-free view with a cinematic
-  backdrop (slow aurora drift, floating specks, vignette and film grain), a
-  glowing progress ring with a comet tip and minute graduations, staggered
-  entrance choreography, session-phase shockwaves and a completion celebration.
-  Only the essentials: Pause / Complete / Exit. `Esc` leaves any time. Opening
-  it *starts the session* — one click, no second start — and so does the
-  advance to the next task when you complete one from inside it.
+- **Focus Mode** — a full-screen, distraction-free room, and the app's name
+  taken literally: a deep-space gradient, a starfield, a galactic band, drifting
+  motes and a soft nebula that drifts and never scales, film grain, and two
+  orbital shells breathing around the instrument. At the centre is the mark's
+  own composition at full size — a dark moon, lit from the upper left, with a
+  satellite on a slow orbit around it and the progress ring for a dial — and on
+  the moon's face a large mono clock, whose minutes carry the weight while the
+  seconds sit back. The moon is the session itself in second form: a new session
+  opens it as a hairline crescent, and its lit fraction waxes exactly with the
+  clock until the face is full as the time runs out. Under it the cycle reads the
+  same way: four moon phases — crescent, half, gibbous, full — one per session
+  in the cycle, lit amber as you bank them, so the full moon at the end of the
+  row is the one that buys the long break. Staggered entrance choreography,
+  session-phase shockwaves and a completion celebration, all in the same
+  language. Only the essentials: the task, the timer, and Pause / Complete / Skip
+  / Reset / Exit. `Esc` leaves any time. Opening it *starts the session* — one
+  click, no second start — and so does the advance to the next task when you
+  complete one from inside it.
 - **Phase tones** — focus is the only colourful state (indigo); every break
-  drains to hue-less ivory, so the shift is felt before it is read. The
-  full-screen aurora, ring, controls and eyebrow all follow the same tone.
+  drains to hue-less ivory, so the shift is felt before it is read. The nebula,
+  ring, orbit, moon-light, controls and eyebrow all follow the same tone.
 - **Phase-completion beat** — when a session or a full cycle ends inside Focus
   Mode, a brief centrepiece badges the change (amber for a completed cycle).
   Any key or tap skips it instantly, and it never blocks the timer.
@@ -70,8 +81,10 @@ npm run typecheck  # tsc --noEmit
   run because you asked for one: Start, entering Focus Mode on a task (which
   starts that task's session as it opens), or completing a task while Focus
   Mode is open on the next one. Optional sound feedback, session
-  counters, skip and reset. Completed sessions and focus minutes are persisted
-  per task and overall.
+  counters, skip and reset. The card carries its own **Focus Mode** button, so
+  the room is one tap from the timer rather than a scroll back up to the list,
+  and it opens on the task the clock is linked to. Completed sessions and focus
+  minutes are persisted per task and overall.
 - **Tasks** — create, edit, delete, complete, plus optional priority and tags
   with tag filtering.
 - **Routines** — save the groups of tasks you repeat (a morning routine, a
@@ -115,8 +128,10 @@ Tokens live in `app/globals.css` under `@theme` (`background`, `foreground`,
 surface overlays, the `--text-*` type scale, and the sans/mono families).
 Reusable layer: `.panel` (matte gradient-bordered surface), `.inset`, `.kbd`,
 `.hairline`, `.ambient` + `.bloom` (a soft glow, faded by a radial mask rather
-than a 90px gaussian blur — see docs/motion-budget.md), `.skeleton`, `.dot-grid`,
-`.grain`, `.float-up`.
+than a 90px gaussian blur — see docs/motion-budget.md), `.skeleton`, `.grain`,
+`.float-up`, and the Focus Mode sky: `.starfield` (the whole star field in one
+static raster), `.galaxy`, `.twinkle` (opacity-only, one composited layer each)
+and `.orbit-spin` (a composited HTML rotation with an SVG inside it).
 
 Motion is centralised in `lib/motion.ts` (durations, springs, variants) and
 phase colour in `lib/tone.ts` — components read the tone by timer mode instead

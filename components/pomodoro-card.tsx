@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Pause, Play, RotateCcw, SkipForward } from "lucide-react";
+import {
+  ChevronDown,
+  Maximize2,
+  Pause,
+  Play,
+  RotateCcw,
+  SkipForward,
+} from "lucide-react";
 
+import { sortTasks } from "@/lib/activity";
 import {
   PRESET_ORDER,
   TIMER_PRESETS,
@@ -14,7 +22,7 @@ import { formatClock } from "@/lib/format";
 import { EASE_OUT_EXPO, SPRING } from "@/lib/motion";
 import { TONES, toneKeyForMode } from "@/lib/tone";
 import { cn } from "@/lib/utils";
-import { getProgress } from "@/lib/timer-actions";
+import { enterFocus, getProgress } from "@/lib/timer-actions";
 import { useTodoStore } from "@/store/use-todo-store";
 import { useTimerStore } from "@/store/use-timer-store";
 import { useUiStore } from "@/store/use-ui-store";
@@ -34,6 +42,7 @@ export function PomodoroCard() {
   const phaseEvent = useTimerStore((state) => state.phaseEvent);
 
   const tasks = useTodoStore((state) => state.tasks);
+  const selectedId = useUiStore((state) => state.selectedId);
   const activeTasks = tasks.filter((task) => !task.completed);
   /*
    * Only an active task can be what the clock is focused on — completing or
@@ -42,6 +51,23 @@ export function PomodoroCard() {
    * is not among its own options.
    */
   const linkedTask = activeTasks.find((task) => task.id === taskId) ?? null;
+  /*
+   * What the card's Focus Mode button opens on. The link is the card's own
+   * answer, and the select below keeps it in step with the list's selection;
+   * when nothing is linked the button falls to the same two fallbacks the F
+   * shortcut uses — the selected row, then the top of the list — so both doors
+   * into the room open on the task the user is looking at. The order is the
+   * list's own (`sortTasks`: newest active first, completed last), not the
+   * store's insertion order, so "the first one" means the same thing on both
+   * sides of the screen. It goes dark only when there is nothing left to focus
+   * on.
+   */
+  const ordered = useMemo(() => sortTasks(tasks), [tasks]);
+  const focusTarget =
+    linkedTask ??
+    ordered.find((task) => task.id === selectedId && !task.completed) ??
+    ordered.find((task) => !task.completed) ??
+    null;
   const reduceMotion = useReducedMotion();
 
   const [announcement, setAnnouncement] = useState("");
@@ -315,6 +341,28 @@ export function PomodoroCard() {
           title="Skip"
         >
           <SkipForward className="size-4" />
+        </Button>
+        {/*
+         * The room is one tap from the timer. Without this the only ways into
+         * Focus Mode from here were the F key and a task row's own button,
+         * which on a phone means scrolling back up the page to the list and
+         * down again to read the clock. Same icon the task rows use for the
+         * same action, and the same "opening it starts the session" rule.
+         */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-10"
+          onClick={() => focusTarget && enterFocus(focusTarget.id)}
+          disabled={!focusTarget}
+          aria-label={
+            focusTarget
+              ? `Enter focus mode for “${focusTarget.title}”`
+              : "Enter focus mode"
+          }
+          title="Focus mode — starts the session"
+        >
+          <Maximize2 className="size-4" />
         </Button>
       </div>
 

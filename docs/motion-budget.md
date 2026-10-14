@@ -591,3 +591,152 @@ other apps holding a core — and the harness now refuses those runs outright
 instead of leaving them to be discarded by hand. The paired harnesses still
 answer their question when a run cannot be recorded at all, because both arms
 share whatever load there is; that is the other reason to reach for them first.
+
+## The lunar pass (2026-10-14)
+
+Focus Mode's room was rebuilt as a lunar scene: a deep-space gradient, an
+eight-layer starfield, one galactic band, two breathing orbital shells, eight
+twinkling stars, ten drifting motes, a dark moon at the dial's centre and a
+satellite on a 110s orbit. None of the *instrument* changed — the ring, its
+graduations, the comet head and the arc's transitions are the ones the clock
+pass fixed — and no behaviour moved: the entry/exit choreography (two veils, the
+sweep, the stagger) is the same move, retuned to the cooler palette, and the
+`.dot-grid` it replaced is gone from the sheet.
+
+Every new layer was chosen to cost nothing per frame, in this document's own
+language:
+
+- **The sky is one raster.** `.starfield` is eight dot layers at 190–440px tiles
+  with per-layer offsets (so no two layers line up into a grid), plus a masked
+  164° band (`.galaxy`) over a static gradient. It is painted once per mount and
+  never transformed. Density was set by measurement: the field lands ~2 stars per
+  140×140 box, ~180 points across a 1600×1000 room. One level denser read as
+  noise beside the clock; the 28px grid it replaced read as a texture.
+- **The twinkle is opacity only.** Eight 2–3px spans with `will-change: opacity`
+  on their own clocks, so each keeps its own composited layer and nothing
+  repaints. `prefers-reduced-motion` leaves them static rather than absent.
+- **The orbit is an HTML rotation with an SVG inside it** (`.orbit-spin`),
+  because a rotation inside an SVG is a *layout* change in Blink — the same
+  finding that moved the comet head into a wrapper div in the clock pass.
+- **The moon is two layers, and neither repaints.** A dark disc carrying one
+  light gradient — the sphere, brightest toward its source — and, above it, the
+  night side: a disc of the room's own dark, the same size as the moon, set down
+  the light's axis. How far it slides is the session: its *lit fraction* is the
+  clock's elapsed fraction, floor-ed so a new session keeps a sliver, so the moon
+  waxes from a hairline crescent to a full face as the clock runs out
+  (`moonLit` / `nightOffset` in `components/focus-mode.tsx`). The travel is a
+  `translate` on a promoted layer and the wash's own opacity is quantised to the
+  same 5% steps the halo's is, because the alternative — masking the light with
+  the crescent-shaped bit of a second disc, the construction the mark itself is
+  built from — re-rasterises the whole disc on every one of a session's ~7500
+  ticks. A third layer carries the limb's rim light and falloff with no fill of
+  its own, so a new moon is still a moon: measured on the shipped build, the
+  unlit disc reads ~19 against 13–19 of air outside it, and the lit one ~29.
+- **The cycle strip is four static rasters.** Four 14px moon phases, each a disc
+  cut by another through an SVG mask — the mark's own construction at the size of
+  a marker — with the offset inverted from the fraction the same way the big
+  moon's is. Nothing in the strip animates: banking a session only changes which
+  of two states a glyph is in, a colour and a drop-shadow.
+- **Nothing new scales or blurs.** The halo — still the instrument's first
+  child, which `visual-check.mjs` samples — animates opacity with constant
+  targets, and the instrument keeps its own `will-change: transform` layer.
+
+### What was measured
+
+`visual-check.mjs` passes **41/41** against the production build, including the
+speck layer never scaling, the halo never scaling while still visibly breathing
+(0.455 → 0.950), and the departure freezing the scene instead of snapping it
+back. Layout checks on the production build (`.freebuff/focus-shots.mjs`) confirm
+the room cannot scroll at 1600×1000, at 390×844 (DPR 3) and at 1280×620, that
+the orbit fits the viewport at every one of them, and that a skip lands on the
+break's tone.
+
+The settled state is the row that matters, and it holds: with the clock running,
+five-second rAF windows on the production build read 60.0–60.2fps, p95 16.8ms and
+**0** frames past 33ms, alternating a plain control with each new layer hidden by
+a stylesheet (`.freebuff/idle-probe.mjs`). Hiding the twinkle, the orbit, the
+motes, the sky or the shells moves nothing — the frame time is not in these
+layers.
+
+### The moon's wax
+
+The night side is placed by inverting the geometry rather than by eye: two equal
+discs offset by `k` leave a lit lune whose fraction of the disc is
+`1 − (2/π)(acos t − t√(1−t²))` for `t = k / 2r`, and the component bisects that for
+the offset a wanted fraction needs. `.freebuff/wax-probe.mjs` checks it end to
+end on the production build. It seeds the clock at seven positions, freezes it,
+and measures each one *twice* — as it stands, and with the moon's light layer
+hidden — so the difference is the moonlight alone and the ring's own blurred glow
+(which covers the disc and is larger than the light) cancels out. Two independent
+readings come back: the night side's translated box, and the terminator's
+position along the light's axis, which two discs that far apart put at
+`s = 2t − 1` moon radii.
+
+| clock (arc) | lit fraction asked for | night-side travel | terminator, from pixels | lit fraction, from pixels |
+| --- | --- | --- | --- | --- |
+| 0.000 | 0.060 | 0.0475 (wanted 0.0475) | −0.909 (wanted −0.905) | 0.058 |
+| 0.150 | 0.201 | 0.1588 (0.1588) | −0.676 (−0.682) | 0.205 |
+| 0.350 | 0.389 | 0.3109 (0.3109) | −0.381 (−0.378) | 0.388 |
+| 0.500 | 0.530 | 0.4302 (0.4302) | −0.148 (−0.140) | 0.525 |
+| 0.700 | 0.718 | 0.6031 (0.6031) | 0.211 (0.206) | 0.721 |
+| 0.900 | 0.906 | 0.8139 (0.8139) | 0.633 (0.628) | 0.908 |
+| 0.998 | 0.998 | 0.9883 (0.9883) | none inside 0.93R | ≥ 0.988 |
+
+The travel is exact to 5×10⁻⁵ of a moon radius, and it lies on the light's axis
+to the same tolerance; the terminator turns up where two discs that far apart put
+it, to within 0.006 radii; and the fraction read back off the pixels — the edge's
+position run through the same lens area, nothing taken on trust from the DOM — is
+within 0.006 of the fraction the clock implies at every position. A fresh
+session, with the floor that keeps the room's centrepiece from going out,
+measures 0.058 lit of 1 against the 0.06 it asks for; a played-out one has no
+edge left anywhere inside 0.93 radii, which is that bound and no measurement, so
+it is written as one.
+
+The same protocol at the phone viewport (390×844, DPR 3, a 212px moon) passes the
+same twelve checks, with the fraction read back within 0.006 of the clock at every
+position there as well — the geometry is percentages of the disc, so the smaller
+room only makes the same shape smaller.
+
+The wax also costs nothing at the settled state. Two clean paired runs of
+`.freebuff/idle-probe.mjs` on the production build — three controls, against
+hiding the light, hiding the night side, and taking the disc's tween away — all
+read 60fps, median 16.7ms, p95 16.8ms, and 0 frames past 33ms in the control and
+in each arm: the travel is composited, so the moon's movement is not in the frame
+time.
+
+### The cycle strip
+
+The row under the session is four moon phases rather than four dots: even quarters
+of a disc — crescent, half, gibbous, full — so one banked session is one phase
+further through the cycle, and the full moon at the end of the row is the one that
+buys the long break. Each glyph is the mark's two-disc construction at 14px, with
+the offset inverted from its fraction exactly as the big moon's night side is.
+`.freebuff/phase-probe.mjs` seeds the clock twice — nothing banked, then two
+sessions — and reads the row off the pixels at DPR 3, where a glyph is 42px:
+
+| glyph | phase asked for | lit fraction, from pixels |
+| --- | --- | --- |
+| 1 | 0.25 | 0.234 |
+| 2 | 0.50 | 0.532 |
+| 3 | 0.75 | 0.796 |
+| 4 | 1.00 | 1.000 |
+
+Banking two sessions leaves the shapes and their order where they were — the same
+four lit fractions within 0.04 in both passes — and turns the first two amber
+(`rgb(233, 184, 114)`, measuring 222,176,110 in the pixels) while the last two stay
+ivory. The aria-label still reports the count (`2 of 4 focus sessions completed`),
+so the shapes are decoration over the same announcement, not a replacement for it.
+The strip is one raster each and the settled budget is unmoved: in
+`.freebuff/idle-probe.mjs`, hiding all four glyphs reads 60fps, p95 16.8ms and 0
+frames past 33ms against a control with 0 as well.
+
+**The full three-phase table could not be recorded.** `perf-focus.mjs` refused
+every run of this pass: the `list` control kept catching a single frame past
+33ms (max 50–67ms) on this machine, and the harness refuses a run whose controls
+are not clean, by design. So `entry`, `idle` and `exit` are **unmeasured** here,
+not passed — the same caveat the exit's own re-take carries above. The one valid
+run taken during the pass, against a `next dev` server before the build measured
+above, read the documented shape — `idle` 52.5fps with 6 frames past 33ms,
+`exit` p95 49.3ms, `entry` p95 66.6ms — but a dev build is not the artifact the
+budget is written against, so those numbers price the environment, not the
+change.

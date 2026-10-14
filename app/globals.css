@@ -264,13 +264,84 @@
     animation: shimmer 1.7s ease-in-out infinite;
   }
 
-  .dot-grid {
-    background-image: radial-gradient(
-      rgba(244, 241, 234, 0.09) 1px,
-      transparent 1px
+  /*
+   * The lunar sky — one static raster for the whole field.
+   *
+   * Eight dot layers at different tile sizes (190–440px), each with its own
+   * offset, so the repetitions never line up into a visible grid the way the
+   * old 28px `.dot-grid` did. Three tints of white (warm ivory, cool blue-white
+   * and plain) keep it from reading as a single dust colour, and one radial
+   * mask calms the middle so the instrument never competes with the sky.
+   *
+   * Density, measured rather than guessed: at these tiles the field lands
+   * roughly two stars per 140×140 box, which on a 1600×1000 room is the ~180
+   * points a quiet sky wants — one level denser read as noise beside the clock,
+   * and the 28px grid this replaced read as a texture.
+   *
+   * Nothing here animates: it is painted once per mount and never transformed,
+   * so the whole planetarium costs one raster. The twinkling stars are separate
+   * elements (see `.twinkle`).
+   */
+  .starfield {
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, rgba(244, 241, 234, 0.5), transparent),
+      radial-gradient(1px 1px at 71% 9%, rgba(200, 214, 255, 0.44), transparent),
+      radial-gradient(1.3px 1.3px at 38% 64%, rgba(244, 241, 234, 0.4), transparent),
+      radial-gradient(1px 1px at 86% 44%, rgba(244, 241, 234, 0.46), transparent),
+      radial-gradient(1.2px 1.2px at 27% 88%, rgba(200, 214, 255, 0.34), transparent),
+      radial-gradient(1px 1px at 58% 31%, rgba(244, 241, 234, 0.3), transparent),
+      radial-gradient(1px 1px at 5% 71%, rgba(244, 241, 234, 0.38), transparent),
+      radial-gradient(1.1px 1.1px at 93% 82%, rgba(200, 214, 255, 0.3), transparent);
+    background-size:
+      245px 245px,
+      190px 190px,
+      310px 310px,
+      215px 215px,
+      375px 375px,
+      280px 280px,
+      340px 340px,
+      440px 440px;
+    background-position:
+      0 0,
+      40px 74px,
+      128px 22px,
+      210px 148px,
+      64px 236px,
+      156px 96px,
+      292px 188px,
+      84px 312px;
+    -webkit-mask-image: radial-gradient(
+      ellipse 94% 76% at 50% 46%,
+      transparent 10%,
+      rgba(0, 0, 0, 0.5) 34%,
+      #000 78%
     );
-    background-size: 28px 28px;
-    mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 75%);
+    mask-image: radial-gradient(
+      ellipse 94% 76% at 50% 46%,
+      transparent 10%,
+      rgba(0, 0, 0, 0.5) 34%,
+      #000 78%
+    );
+  }
+
+  /*
+   * A galactic band, so the sky has one direction rather than being even.
+   * Masked to a soft ellipse, because a full-width 164° stripe reads as a
+   * gradient artefact rather than a galaxy.
+   */
+  .galaxy {
+    background-image: linear-gradient(
+      164deg,
+      transparent 26%,
+      rgba(139, 153, 255, 0.055) 47%,
+      transparent 66%
+    );
+    -webkit-mask-image: radial-gradient(
+      72% 52% at 34% 16%,
+      #000,
+      transparent 80%
+    );
+    mask-image: radial-gradient(72% 52% at 34% 16%, #000, transparent 80%);
   }
 
   /*
@@ -316,6 +387,33 @@
   .float-up {
     animation: float-up var(--float-duration, 14s) linear
       var(--float-delay, 0s) infinite;
+  }
+
+  /*
+   * The brightest handful of stars, breathing on their own clocks.
+   *
+   * Opacity only — the same rule the halo follows — so Chrome keeps each one on
+   * its own composited layer and nothing repaints. They are 2–3px, so the
+   * layers are free; `will-change` is stated rather than left to the browser
+   * because these run for the whole session. `.departing` freezes them with
+   * everything else (app/globals.css).
+   */
+  .twinkle {
+    animation: twinkle var(--twinkle-duration, 6s) ease-in-out
+      var(--twinkle-delay, 0s) infinite;
+    will-change: opacity;
+  }
+
+  /*
+   * One satellite orbit around the instrument. A rotation is a composited
+   * transform on an HTML box — which is why the arc is an HTML wrapper with an
+   * SVG inside it rather than an animated SVG transform: rotating inside an SVG
+   * is a *layout* change in Blink and lays the document out every frame (the
+   * same reason the ring's comet head is a rotating div; docs/motion-budget.md).
+   */
+  .orbit-spin {
+    animation: orbit-spin 110s linear infinite;
+    will-change: transform;
   }
 }
 
@@ -376,6 +474,25 @@
   100% {
     transform: translate3d(var(--drift, 0px), -96px, 0);
     opacity: 0;
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.16;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes orbit-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
