@@ -142,33 +142,46 @@ export function ProgressRing({
             } as CSSProperties
           }
         />
-        {/* Comet head riding the tip of the arc */}
-        {clamped > 0.004 && (
-          <g
-            style={{
-              transform: `rotate(${clamped * 360}deg)`,
-              transformOrigin: `${size / 2}px ${size / 2}px`,
-              transformBox: "view-box",
-              transition: "transform 240ms linear",
-            }}
-          >
+      </svg>
+
+      {/*
+       * Comet head riding the tip of the arc.
+       *
+       * Deliberately *outside* the svg above, and rotated as a div: rotating an
+       * SVG group — or transitioning any SVG `transform` — is a layout change in
+       * Blink, so a per-frame rotation inside the svg re-ran the document's
+       * layout on every frame of the whole session (docs/motion-budget.md).
+       * An HTML transform is composited instead. The dot sits at twelve o'clock
+       * here rather than at the arc's own start angle, which is what lets the
+       * wrapper carry the rotation the `-rotate-90` used to supply.
+       */}
+      {clamped > 0.004 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            transform: `rotate(${clamped * 360}deg)`,
+            transition: "transform 240ms linear",
+          }}
+        >
+          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0">
             <circle
-              cx={size / 2 + radius}
-              cy={size / 2}
+              cx={size / 2}
+              cy={size / 2 - radius}
               r={strokeWidth / 2 + 3.5}
               fill={colors.solid}
               opacity={0.35}
             />
             <circle
-              cx={size / 2 + radius}
-              cy={size / 2}
+              cx={size / 2}
+              cy={size / 2 - radius}
               r={Math.max(1.2, strokeWidth / 2 - 0.5)}
               fill="#fffdf8"
               opacity={0.95}
             />
-          </g>
-        )}
-      </svg>
+          </svg>
+        </div>
+      )}
       <div className="relative z-10 grid place-items-center">{children}</div>
     </div>
   );

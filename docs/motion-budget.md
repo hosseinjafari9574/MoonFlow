@@ -26,6 +26,12 @@ node .freebuff/visual-check.mjs              # phone viewport (390x844 @ DPR 3):
                                               # layer and ring halo never scale,
                                              # and that a departure freezes both
                                              # without snapping them back
+node .freebuff/perf-tick.mjs --label before   # the *running* clock: Layout /
+                                              # UpdateLayoutTree / Paint counts
+                                              # and main-thread time per second,
+                                              # running vs paused, bisected
+node .freebuff/visual-ring.mjs capture before # the ring's pixels in a frozen,
+node .freebuff/visual-ring.mjs diff before after   # deterministic state
 node .freebuff/perf-summary.mjs <label> run1.json run2.json run3.json
 node .freebuff/phase-table.mjs run1.json run2.json   # one line per run, and
                                                      # *where* its slow frames fall
@@ -352,6 +358,135 @@ starved GPU none of these tools runs on. So the checks verify the *mechanisms*
 animation that really completes its cycle) rather than the device. If the
 reported glitch was something else on that hardware, these four are still things
 the budget had wrong, but the phone has the last word.
+
+## The clock pass (2026-10-13)
+
+Every pass above measured a transition. None measured the state the user is
+actually in, which is why one was left: a clock that is *running*.
+
+`idle` was on budget — 60fps, p95 16.8ms, no frame past 33ms — and it still is.
+But frame pacing is the wrong instrument for a cost like this one. With the
+clock paused the page does **no** layout at all; with it running, the same page
+ran **61 layouts and 65 style recalcs every second**, and 1522 paints in twelve,
+for 220ms of main-thread time per second against 44ms idle. That is a quarter of
+a core, for twenty-five minutes, on every device — and not one frame of it is
+visibly late on this machine, which is exactly why the budget never saw it.
+
+`.freebuff/perf-tick.mjs` measures it in twelve-second windows and reads the
+browser's own `Layout` / `UpdateLayoutTree` / `Paint` trace-event counts, with
+the clock **paused** as the control arm — same page, same layers, no ticks. Two
+things about that harness were wrong before they were right, and both are worth
+keeping. The seed has to be written while the page is *paused*: a running page
+rewrites its own timer slice on every tick, so a seed written over it loses the
+race and the "paused" arm quietly measures a running clock (an early run of this
+harness had exactly that, and reported it as the control). And `LayoutCount`
+from `Performance.getMetrics` reads a plain 0 on a page that does no layout, so
+the paused arm is what proves the instrument is alive.
+
+| Per second, clock **running** | before | after |
+| --- | --- | --- |
+| `Layout` events | 61 | **1** |
+| `UpdateLayoutTree` events | 65 | 65 |
+| `Paint` events | 127 | 113 |
+| main thread (`TaskDuration`) | 220ms | 218ms |
+| `ScriptDuration` | 30ms | 33ms |
+
+The pause arm is 0 / 0 / 0 / 44ms / 6ms on both builds.
+
+### Finding the two of them
+
+The bisect took nine sessions, because the obvious instrument does not work.
+A `Layout` runs at most **once per frame**, so the count pins at ~60/s and any
+single contributor holds it there: taking the progress rule's transition off
+moved nothing (61 → 65), and neither did the ring's SVG transitions, the divs,
+the buttons and text, the `select`, the header, the glows or the blooms — each
+one measured alone. `dirtyObjects` in this Chrome's trace is a bare count, and
+CDP's Animation domain reports a `cssId` with no source node, so neither names
+the element either. What found it was taking the contributors off *in
+combination*: with the progress rule neutralised, `svg g { transition: none }`
+dropped the count from 65 to **5**, and with both off the page matched the
+full-transitions-off ceiling exactly.
+
+The two are:
+
+1. **The progress rule under the ring** was a `transition-[width]`, retriggered
+every 200ms for the length of a session — so it was *always* mid-interpolation,
+and a width transition lays out on every frame it interpolates. It is
+`scaleX` on an `origin-left` box now. The paint is identical, because the
+rule's gradient is defined across the element's own box and so squashes with
+it; `origin-left` is what makes the scale grow from the same edge the width did.
+2. **The comet head's rotation.** It rode the arc as an SVG `<g>` with
+`transition: transform`. A transformed SVG element is a **layout** change in
+Blink, not a composited one — so a rotation that glides between every tick laid
+out the document every frame. `will-change: transform` on the group does not
+help (measured: 65/s, unchanged); it is composited as a rotated `div` now, with
+the same two circles in a small svg inside it, positioned at twelve o'clock so
+the wrapper's own rotation supplies what the containing svg's `-rotate-90`
+used to. Both still glide: 35 distinct computed transforms in 35 samples across
+1.4s, for the comet and for the rule.
+
+### The ring is still the ring
+
+Moving something that is *drawn* is not a refactor you can wave through, so the
+ring is captured in a frozen state — clock paused at a fixed progress, every CSS
+animation and transition switched off, so no two captures can differ by phase —
+and diffed pixel by pixel (`.freebuff/visual-ring.mjs`; the diff runs in the
+page, where the canvas is). Two captures of the **same** build differ by zero
+pixels, so the harness has no noise floor to hide behind. Before against after:
+138 of 207,936 pixels differ, all of them on the comet's soft halo rim, and the
+comet's near-white core is identical in both — the same 107 bright pixels with
+the same centroid to three decimals (`364.037, 69.355`). The comet is in exactly
+the same place; a rotated div rasterises its edge slightly differently from a
+rotated SVG subtree.
+
+### The budget, re-checked
+
+The ring is the instrument Focus Mode is built around, so the arrival and the
+departure were re-run on the same machine: **six valid runs** after, against
+**three valid runs** of the unmodified build, every control clean in all nine.
+
+| Phase | baseline (3 runs) | after (6 runs) |
+| --- | --- | --- |
+| `idle` | 60.1fps, p95 16.8, 0 past 33ms | 60.1fps, p95 16.8, 0 past 33ms |
+| `entry` | p95 33.9, 10 past 33ms, 4 past 50ms | p95 34.2, 10.5 past 33ms, 2.5 past 50ms |
+| `exit` | p95 49.9, 8 past 33ms, 1 past 50ms | p95 50.1, 7 past 33ms, 4 past 50ms |
+
+Two things to read there. First, **entry and exit were already outside budget
+before this change** — the baseline's own medians fail the p95 line, which is
+what the exit's re-take above said about the shipped build. Second, the change
+does not move them: the exit's p95 is the same 50 either side, and six runs
+span the whole documented bimodality (33.8, 49.8, 50, 50.1, 66.4, 66.5), so the
+three-run baseline looking tightly 49.9 is the *baseline's* accident, not a
+regression. The one number that did move is the exit's count of frames past
+50ms, median 1 → 4 — and it does not hold up: those six runs disagree with each
+other in batches (4, 4, 4, then 1, 1, 1), which is a session effect rather than
+a signal about the change. It is recorded here as unresolved, not as a price.
+
+### What is left of this one
+
+The arc itself is now the most expensive thing in the app that runs
+continuously: with the two fixes in place, turning off the SVG transitions
+altogether takes `Paint` from 1353 to 136 and main-thread time from 218ms/s to
+**90ms/s** (`svgOff` vs `bothOff` in the harness). That is the arc's
+`stroke-dashoffset` transition re-rasterising its own `drop-shadow` every frame
+— roughly 127ms/s, 13% of a core, for the glide that makes the arc feel like an
+instrument rather than a stepping bar. The transition is the design and the
+filter is the design; the two together are the cost, and no faithful change
+removes it (a static glow would stop following the tip; a stepping arc changes
+the motion). It stays, priced, for whoever wants to spend the look on it.
+
+**Declined, with reasons.** The stats bars animate `height: %` and the composer
+animates `height: auto` — both layout properties, both one-shot: seven bars on
+an activity change, one disclosure on open. The bars could be `scaleY` inside a
+clipping wrapper (faithful, but structure for a cost that does not measure); the
+composer cannot, because an expanding panel has to move what is below it. The
+13 `transition-all`s in the app were left alone on measurement: narrowing every
+transition to properties that cannot lay out (`safeOnly` in the harness) does
+**not** reduce the count, because the rule and the comet were the layout
+properties and everything else only changes colour. **Ruled out by bisect, each
+with the rule held off so the count could move at all:** the ring's arc and
+ticks, every div, every button and text node, the `select`, the label, the
+glows, the blooms, and `will-change: transform` on the rotating group.
 
 ## What is left
 

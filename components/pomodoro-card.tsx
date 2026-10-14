@@ -186,10 +186,17 @@ export function PomodoroCard() {
 
       {/* Quiet progress rule — the ring without the shout. */}
       <div className="relative mt-4 h-px w-full overflow-hidden bg-white/[0.06]">
+        {/*
+         * Scaled, not resized. A transition on `width` re-runs layout on every
+         * frame it interpolates, and this one is retriggered every 200ms for the
+         * length of a session. Scaling the full-width box paints the same thing
+         * — the gradient is defined across the element's own box, so it squashes
+         * with it — and never touches layout.
+         */}
         <div
-          className="absolute inset-y-0 left-0 transition-[width] duration-300 ease-linear"
+          className="absolute inset-y-0 left-0 w-full origin-left transition-transform duration-300 ease-linear"
           style={{
-            width: `${Math.max(progress * 100, 0.5)}%`,
+            transform: `scaleX(${Math.max(progress, 0.005)})`,
             background: `linear-gradient(90deg, rgba(${tone.rgb},0.15), ${tone.solid})`,
           }}
         />
