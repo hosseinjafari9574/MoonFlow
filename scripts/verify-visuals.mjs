@@ -1,0 +1,1044 @@
+#!/usr/bin/env node
+/**
+ * The instrument's geometry, measured.
+ *
+ * Three things in this app are geometry rather than styling: the card's
+ * graduations, the room's moon and the phase strip. Each of them has a right
+ * answer — an angle, a lit fraction, a token — so each of them can be *read
+ * back* and compared with what the source implies. This does that in one
+ * checked-in script, against a headless Chrome and a seeded session, and exits
+ * non-zero on drift.
+ *
+ * It replaces the pile of one-off probes this repository grew while the room was
+ * being measured (`ring-probe.mjs`, `ring-focus.mjs`, `phase-probe.mjs`, the
+ * moon half of `moon-samples.mjs`). Those are still the record of *how* the
+ * numbers were chosen; this is the part worth guarding.
+ *
+ * What is measured, and where the expectation comes from:
+ *
+ *   ring    the card's 25 graduations. Expected angles are derived from the
+ *           marked-minute count, the arc's lit span from the seeded progress,
+ *           and both are confirmed against the rendered pixels: every tick's
+ *           angular position and whether it is lit, plus where the arc stops.
+ *           The last one is the regression that started this: the marks sat a
+ *           quarter turn behind the arc, and only the pixels showed it.
+ *
+ *   moon    the room's disc. Its light's position is read from the gradient and
+ *           compared with `MOON_LIGHT`; the night side's travel is compared with
+ *           `nightOffset(lit)` computed here, independently; the disc's fill with
+ *           `--moon-dark`; and the pixels are sampled on both sides of the
+ *           terminator and along both limbs.
+ *
+ *   strip   the four phases. Each mask's rotation must be the night axis from
+ *           `geometry.ts` and each terminator's waist the one `|2k − 1|` gives;
+ *           the area each glyph actually lights is measured off its pixels (a
+ *           coverage-weighted count, so antialiasing is not counted as a
+ *           judgement) and must be the quarter it says; the unlit body must be
+ *           `--moon-glyph`, hue-less; and the banked moons must be amber where
+ *           the pending ones are grey.
+ *
+ * Usage:
+ *   npm run verify:visuals                     # starts `next dev` itself
+ *   APP=http://127.0.0.1:3100 npm run verify:visuals
+ *   node scripts/verify-visuals.mjs [url]      # an already-running app
+ *
+ * Artifacts (three screenshots and the report) are written to
+ * `.freebuff/verify-visuals/`, which is ignored. Exit code 1 means at least one
+ * measurement drifted; every check is printed either way, with the numbers.
+ */
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const ARTIFACTS = join(ROOT, ".freebuff", "verify-visuals");
+
+const TASKS_KEY = "cadence:todos:v1";
+const TIMER_KEY = "cadence:timer:v1";
+const DIALOG = '[role="dialog"][aria-label^="Focus mode"]';
+const TASK_TITLE = "Rewrite the quarterly report";
+
+/** One finished cycle plus a half: two banked moons, a session two thirds run. */
+const SESSIONS = 2;
+const REMAINING_MIN = 15;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const fmt = (n, digits = 2) => (Number.isFinite(n) ? String(Number(n.toFixed(digits))) : String(n));
+
+/* ------------------------------------------------------------------ source */
+
+/**
+ * What the app says its own numbers are. Reading them here rather than copying
+ * them is the point of the exercise: a changed light position or token is a
+ * change the check has to see, not one it silently inherits.
+ */
+function readSource() {
+  const geometry = readFileSync(join(ROOT, "components/focus/geometry.ts"), "utf8");
+  const globals = readFileSync(join(ROOT, "app/globals.css"), "utf8");
+  const constants = readFileSync(join(ROOT, "lib/constants.ts"), "utf8");
+
+  const light = /MOON_LIGHT = \{ x: ([\d.]+), y: ([\d.]+) \}/.exec(geometry);
+  const minLit = /MOON_MIN_LIT = ([\d.]+)/.exec(geometry);
+  const focusMinutes = /classic:[\s\S]*?focus: (\d+) \* 60_000/.exec(constants);
+  const cycle = /longBreakAfter: (\d+)/.exec(constants);
+  const dark = /--moon-dark:\s*(#[0-9a-fA-F]{6})/.exec(globals);
+  const glyph = /--moon-glyph:\s*(#[0-9a-fA-F]{6})/.exec(globals);
+
+  if (!light || !minLit || !focusMinutes || !cycle || !dark || !glyph) {
+    throw new Error(
+      "could not read the instrument's own numbers out of components/focus/geometry.ts, " +
+        "lib/constants.ts or app/globals.css — update the patterns in scripts/verify-visuals.mjs",
+    );
+  }
+
+  return {
+    light: { x: Number(light[1]), y: Number(light[2]) },
+    minLit: Number(minLit[1]),
+    focusMinutes: Number(focusMinutes[1]),
+    cycle: Number(cycle[1]),
+    moonDark: dark[1],
+    moonGlyph: glyph[1],
+  };
+}
+
+const hexLuma = (hex) => {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+};
+
+/**
+ * The night axis, from `MOON_LIGHT`: the direction the unlit half slides, and
+ * the rotation the phase strip's terminator carries. Written out here rather
+ * than imported because this side of the check has to be able to disagree.
+ */
+function nightAxis(light) {
+  const dx = light.x / 100 - 0.5;
+  const dy = light.y / 100 - 0.5;
+  const length = Math.hypot(dx, dy);
+  return { x: -dx / length, y: -dy / length };
+}
+
+/** `nightOffset` from geometry.ts, independently: thirty bisections, percent. */
+function nightOffset(lit) {
+  const target = Math.min(1, Math.max(0, lit));
+  let lo = 0;
+  let hi = 1;
+  for (let step = 0; step < 30; step += 1) {
+    const t = (lo + hi) / 2;
+    const lens = (2 / Math.PI) * (Math.acos(t) - t * Math.sqrt(1 - t * t));
+    if (1 - lens < target) lo = t;
+    else hi = t;
+  }
+  return ((lo + hi) / 2) * 100;
+}
+
+/* -------------------------------------------------------------------- app */
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+function stopTree(child) {
+  if (child.exitCode !== null) return;
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+  } else {
+    try {
+      process.kill(-child.pid, "SIGTERM");
+    } catch {
+      child.kill("SIGTERM");
+    }
+  }
+}
+
+/** A dev server, started here so the script stands alone. */
+async function startApp() {
+  const port = await freePort();
+  const nextBin = join(ROOT, "node_modules", "next", "dist", "bin", "next");
+  if (!existsSync(nextBin)) throw new Error("next is not installed — run the project's install first");
+  const child = spawn(process.execPath, [nextBin, "dev", "-p", String(port)], {
+    cwd: ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: process.platform !== "win32",
+    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" },
+  });
+  let log = "";
+  child.stdout.on("data", (chunk) => {
+    log += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    log += chunk;
+  });
+
+  const base = `http://127.0.0.1:${port}/`;
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`next dev exited (${child.exitCode}) before it answered:\n${log.slice(-3000)}`);
+    }
+    try {
+      const response = await fetch(base);
+      if (response.ok) return { base, stop: () => stopTree(child) };
+    } catch {
+      /* not up yet */
+    }
+    await sleep(400);
+  }
+  stopTree(child);
+  throw new Error(`the app did not answer on ${base} within 120s:\n${log.slice(-3000)}`);
+}
+
+/* ---------------------------------------------------------------- browser */
+
+const CHROME_CANDIDATES = [
+  process.env.CHROME_PATH,
+  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+];
+
+function findChrome() {
+  const found = CHROME_CANDIDATES.find((candidate) => candidate && existsSync(candidate));
+  if (!found) {
+    throw new Error(
+      "no Chrome or Edge found — set CHROME_PATH to a Chromium-based browser binary",
+    );
+  }
+  return found;
+}
+
+class Session {
+  constructor(socket) {
+    this.socket = socket;
+    this.nextId = 0;
+    this.pending = new Map();
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      const entry = this.pending.get(message.id);
+      if (!entry) return;
+      this.pending.delete(message.id);
+      if (message.error) entry.reject(new Error(JSON.stringify(message.error)));
+      else entry.resolve(message.result);
+    };
+  }
+
+  send(method, params = {}) {
+    const id = (this.nextId += 1);
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      this.socket.send(JSON.stringify({ id, method, params }));
+    });
+  }
+
+  async eval(expression) {
+    const { result, exceptionDetails } = await this.send("Runtime.evaluate", {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    if (exceptionDetails) {
+      throw new Error(
+        exceptionDetails.exception?.description ?? exceptionDetails.text ?? "page threw",
+      );
+    }
+    return result.value;
+  }
+
+  close() {
+    this.socket.close();
+  }
+}
+
+/** Calls a Node function inside the page, with JSON arguments. */
+const inPage = (session, fn, ...args) =>
+  session.eval(`(${fn.toString()})(${args.map((arg) => JSON.stringify(arg)).join(", ")})`);
+
+async function connect(cdpPort) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const list = await fetch(`http://127.0.0.1:${cdpPort}/json/list`).then((r) => r.json());
+      const page = list.find((target) => target.type === "page");
+      if (page?.webSocketDebuggerUrl) {
+        const socket = new WebSocket(page.webSocketDebuggerUrl);
+        await new Promise((resolve, reject) => {
+          socket.onopen = resolve;
+          socket.onerror = reject;
+        });
+        return new Session(socket);
+      }
+    } catch {
+      /* not up yet */
+    }
+    await sleep(200);
+  }
+  throw new Error("no CDP target appeared");
+}
+
+/* ----------------------------------------------------- browser-side readers */
+
+/** The card's ring out of the DOM: marks, arc and box. */
+function readCardRing() {
+  const svg = [...document.querySelectorAll("svg")].find(
+    (element) => element.querySelectorAll("line").length > 5 && !element.closest('[role="dialog"]'),
+  );
+  if (!svg) return null;
+  const lines = [...svg.querySelectorAll("line")];
+  const arcs = [...svg.querySelectorAll("circle")].filter((circle) =>
+    /url\(/.test(circle.getAttribute("stroke") || ""),
+  );
+  const arc = arcs[arcs.length - 1];
+  if (!arc) return null;
+  const box = svg.getBoundingClientRect();
+  const ys = lines.flatMap((line) => [
+    Number(line.getAttribute("y1")),
+    Number(line.getAttribute("y2")),
+  ]);
+  const size = box.width;
+  const style = getComputedStyle(arc);
+  const dash = Number.parseFloat(style.strokeDasharray.split(",")[0]);
+  const offset = Number.parseFloat(style.strokeDashoffset);
+  return {
+    box: { x: box.x, y: box.y, w: box.width, h: box.height },
+    size,
+    tickOuter: size / 2 - Math.min(...ys),
+    tickInner: size / 2 - Math.max(...ys),
+    arcR: Number(arc.getAttribute("r")),
+    arcW: Number(arc.getAttribute("stroke-width")),
+    angles: lines.map((line) =>
+      Number((line.parentElement.getAttribute("transform") || "").match(/rotate\(([-\d.]+)/)?.[1]),
+    ),
+    /* Each mark's own shaft, so a short tick is not sampled where only a long one reaches. */
+    shafts: lines.map((line) => {
+      const y1 = Number(line.getAttribute("y1"));
+      const y2 = Number(line.getAttribute("y2"));
+      return {
+        inner: size / 2 - Math.max(y1, y2),
+        outer: size / 2 - Math.min(y1, y2),
+        major: Math.abs(y1 - y2) > 6,
+      };
+    }),
+    active: lines.map((line) => line.getAttribute("stroke-opacity") === "0.9"),
+    major: lines.map(
+      (line) => Math.abs(Number(line.getAttribute("y1")) - Number(line.getAttribute("y2"))) > 6,
+    ),
+    progress: 1 - offset / dash,
+    clock: document.querySelector('[role="timer"]')?.textContent ?? null,
+  };
+}
+
+/** The room: dial, moon, strip and the tokens they are painted from. */
+function readFocusRoom() {
+  const dialog = document.querySelector('[role="dialog"][aria-label^="Focus mode"]');
+  if (!dialog) return null;
+
+  const dialSvg = [...dialog.querySelectorAll("svg")].find(
+    (element) => element.querySelectorAll("line").length > 5,
+  );
+  const dialLines = dialSvg ? [...dialSvg.querySelectorAll("line")] : [];
+  const dialBox = dialSvg?.getBoundingClientRect() ?? null;
+  const arcs = [...dialog.querySelectorAll("circle")].filter((circle) =>
+    /url\(/.test(circle.getAttribute("stroke") || ""),
+  );
+  const arc = arcs[arcs.length - 1];
+  const arcStyle = arc ? getComputedStyle(arc) : null;
+  const arcDash = arcStyle ? Number.parseFloat(arcStyle.strokeDasharray.split(",")[0]) : NaN;
+  const arcOffset = arcStyle ? Number.parseFloat(arcStyle.strokeDashoffset) : NaN;
+
+  const instrument = dialog.querySelector("div.relative.flex-none");
+  const moon = instrument?.children?.[1] ?? null;
+  const light = moon?.children?.[0] ?? null;
+  const night = moon?.children?.[1] ?? null;
+  const disc = moon?.getBoundingClientRect() ?? null;
+  const gradient = light ? getComputedStyle(light).backgroundImage : "";
+  const at = /circle at ([\d.]+)% ([\d.]+)%/.exec(gradient);
+  const transform = night ? getComputedStyle(night).transform : "";
+  const matrix = transform && transform !== "none" ? new DOMMatrixReadOnly(transform) : null;
+
+  const strip = dialog.querySelector('[role="img"]');
+  const glyphs = strip
+    ? [...strip.querySelectorAll("svg")].map((svg) => {
+        const box = svg.getBoundingClientRect();
+        const ellipse = svg.querySelector("ellipse");
+        return {
+          box: { x: box.x, y: box.y, w: box.width, h: box.height },
+          rotations: [...svg.querySelectorAll("[transform]")].map((node) =>
+            Number((node.getAttribute("transform") || "").match(/rotate\(([-\d.]+)/)?.[1]),
+          ),
+          rx: ellipse ? Number(ellipse.getAttribute("rx")) : null,
+          ry: ellipse ? Number(ellipse.getAttribute("ry")) : null,
+          color: getComputedStyle(svg).color,
+        };
+      })
+    : [];
+
+  const tokenSource = moon ?? document.documentElement;
+  const tokens = getComputedStyle(tokenSource ?? document.documentElement);
+  const dark = tokens.getPropertyValue("--moon-dark").trim();
+  const glyph = tokens.getPropertyValue("--moon-glyph").trim();
+
+  return {
+    dial: {
+      box: dialBox ? { x: dialBox.x, y: dialBox.y, w: dialBox.width, h: dialBox.height } : null,
+      angles: dialLines.map((line) =>
+        Number((line.parentElement.getAttribute("transform") || "").match(/rotate\(([-\d.]+)/)?.[1]),
+      ),
+      active: dialLines.filter((line) => line.getAttribute("stroke-opacity") === "0.9").length,
+      progress: 1 - arcOffset / arcDash,
+    },
+    moon: {
+      box: disc ? { x: disc.x, y: disc.y, w: disc.width, h: disc.height } : null,
+      light: at ? { x: Number(at[1]), y: Number(at[2]) } : null,
+      fill: moon ? getComputedStyle(moon).backgroundColor : null,
+      translate: matrix
+        ? { x: (matrix.e / disc.width) * 100, y: (matrix.f / disc.height) * 100 }
+        : null,
+    },
+    strip: {
+      label: strip?.getAttribute("aria-label") ?? null,
+      count: glyphs.length,
+      glyphs,
+      box: strip
+        ? (() => {
+            const box = strip.getBoundingClientRect();
+            return { x: box.x, y: box.y, w: box.width, h: box.height };
+          })()
+        : null,
+    },
+    tokens: { dark, glyph },
+  };
+}
+
+/* ----------------------------------------------------- browser-side pixels */
+
+/**
+ * Reads the captured pixels. One function for all three subjects, because the
+ * screenshot arrives as a data URL inside the page and decoding it is the same
+ * work each time.
+ */
+async function measurePixels(spec) {
+  const image = new Image();
+  image.src = `data:image/png;base64,${spec.shot}`;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+  const w = width;
+  const h = height;
+
+  const rgbAt = (x, y) => {
+    const i = (Math.round(y) * w + Math.round(x)) * 4;
+    if (i < 0 || i + 3 >= data.length) return null;
+    return { r: data[i], g: data[i + 1], b: data[i + 2] };
+  };
+  const lumaAt = (x, y) => {
+    const p = rgbAt(x, y);
+    return p ? 0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b : null;
+  };
+  const meanAt = (x, y, radius) => {
+    let sum = 0;
+    let count = 0;
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const l = lumaAt(x + dx, y + dy);
+        if (l !== null) {
+          sum += l;
+          count += 1;
+        }
+      }
+    }
+    return count ? sum / count : null;
+  };
+
+  if (spec.kind === "ring") {
+    const scale = w / spec.size;
+    const cx = w / 2;
+    const cy = h / 2;
+    const sample = (deg, radius) => {
+      const a = ((deg - 90) * Math.PI) / 180;
+      return lumaAt(cx + Math.cos(a) * radius * scale, cy + Math.sin(a) * radius * scale);
+    };
+    const peakAt = (deg, inner, outer) => {
+      let best = 0;
+      for (let r = inner; r <= outer; r += 0.5) {
+        const l = sample(deg, r);
+        if (l !== null && l > best) best = l;
+      }
+      return best;
+    };
+
+    /*
+     * Where each mark actually is. A 1px line at 1° steps is a shoulder, not a
+     * spike — its plateau can have no strict local maximum at the sampled
+     * resolution — so each mark is found by searching a window narrower than the
+     * 14.4° spacing for the brightest point in its own shaft. A quarter-turn
+     * slip puts the search on the sky, and the luma says so.
+     */
+    const marks = spec.marks.map((mark) => {
+      let best = { deg: mark.angle, luma: 0 };
+      for (let offset = -5; offset <= 5; offset += 0.5) {
+        const deg = mark.angle + offset;
+        const luma = peakAt(deg, mark.inner + 1, mark.outer - 0.6);
+        if (luma > best.luma) best = { deg, luma: Math.round(luma) };
+      }
+      return best;
+    });
+
+    let arcEnd = 0;
+    for (let d = 0; d < 360; d += 0.5) {
+      const l = peakAt(d, spec.arcInner, spec.arcOuter);
+      if (l >= spec.arcThreshold) arcEnd = d;
+      else if (d > 8) break;
+    }
+
+    return { marks, arcEnd };
+  }
+
+  if (spec.kind === "moon") {
+    const radius = w / 2;
+    const cx = w / 2;
+    const cy = h / 2;
+    const lx = spec.light.x / 100 - 0.5;
+    const ly = spec.light.y / 100 - 0.5;
+    const length = Math.hypot(lx, ly);
+    const ux = lx / length;
+    const uy = ly / length;
+    /*
+     * 0.72 of the radius, not 0.42: the dial's clock sits in the middle of the
+     * moon, and a sample there is a sample of white text rather than of the
+     * surface. At this distance both sides are past the reading and still well
+     * inside the disc.
+     */
+    /* `u` points from the centre toward the light, so the lit half is +u. */
+    const at = (dx, dy, fraction) =>
+      meanAt(cx + dx * fraction * radius, cy + dy * fraction * radius, 3);
+    return {
+      litSide: at(ux, uy, 0.72),
+      nightSide: at(-ux, -uy, 0.72),
+      litLimb: at(ux, uy, 0.88),
+      nightLimb: at(-ux, -uy, 0.88),
+      centre: at(0, 0, 0.1),
+    };
+  }
+
+  if (spec.kind === "strip") {
+    /*
+     * The screenshot is scaled by the clip's scale *and* the device pixel
+     * ratio, so image pixels per CSS pixel is measured from the capture rather
+     * than assumed: at dpr 3 and scale 3 a 14px glyph is 126px of image, not
+     * 42, and a rect converted with the wrong factor lands in its neighbour.
+     */
+    const sx = w / spec.clip.w;
+    return spec.glyphs.map((glyph) => {
+      const box = {
+        x: (glyph.x - spec.clip.x) * sx,
+        y: (glyph.y - spec.clip.y) * sx,
+        w: glyph.w * sx,
+        h: glyph.h * sx,
+      };
+      const radius = (10 / 24) * box.w;
+      const cx = box.x + box.w / 2;
+      const cy = box.y + box.h / 2;
+      const inside = [];
+      for (let y = Math.floor(cy - radius); y <= Math.ceil(cy + radius); y += 1) {
+        for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x += 1) {
+          const distance = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+          if (distance > radius - 0.6) continue;
+          const p = rgbAt(x, y);
+          if (!p) continue;
+          inside.push({ l: 0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b, ...p });
+        }
+      }
+      if (!inside.length) return null;
+
+      const lumas = inside.map((p) => p.l).sort((a, b) => a - b);
+      const percentile = (fraction) =>
+        lumas[Math.min(lumas.length - 1, Math.floor(fraction * (lumas.length - 1)))];
+      const litReference = percentile(0.92);
+      const darkReference = Math.max(6, spec.darkLuma);
+      const span = Math.max(12, litReference - darkReference);
+
+      let coverage = 0;
+      const darkPixels = [];
+      const litPixels = [];
+      for (const p of inside) {
+        const t = Math.min(1, Math.max(0, (p.l - darkReference) / span));
+        coverage += t;
+        if (t < 0.15) darkPixels.push(p);
+        if (t > 0.85) litPixels.push(p);
+      }
+
+      const median = (pixels, pick) => {
+        if (!pixels.length) return null;
+        const values = pixels.map(pick).sort((a, b) => a - b);
+        return values[Math.floor(values.length / 2)];
+      };
+      const darkMedian = {
+        r: median(darkPixels, (p) => p.r),
+        g: median(darkPixels, (p) => p.g),
+        b: median(darkPixels, (p) => p.b),
+      };
+      const darkLuma =
+        darkPixels.length
+          ? 0.2126 * darkMedian.r + 0.7152 * darkMedian.g + 0.0722 * darkMedian.b
+          : null;
+
+      return {
+        litFraction: coverage / inside.length,
+        darkLuma,
+        darkSpread:
+          darkPixels.length
+            ? Math.max(darkMedian.r, darkMedian.g, darkMedian.b) -
+              Math.min(darkMedian.r, darkMedian.g, darkMedian.b)
+            : null,
+        litLuma: median(litPixels, (p) => p.l),
+        litWarmth:
+          litPixels.length
+            ? median(litPixels, (p) => p.r) - median(litPixels, (p) => p.b)
+            : null,
+        pixels: inside.length,
+      };
+    });
+  }
+
+  throw new Error(`unknown pixel subject ${spec.kind}`);
+}
+
+/* --------------------------------------------------------------- reporting */
+
+const results = [];
+
+function record(name, ok, detail) {
+  results.push({ name, ok, detail });
+  console.log(`  ${ok ? "ok   " : "DRIFT"} ${name.padEnd(30)} ${detail}`);
+  return ok;
+}
+
+function near(name, actual, expected, tolerance, unit = "") {
+  const ok = Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance + 1e-9;
+  return record(
+    name,
+    ok,
+    `measured ${fmt(actual)}${unit}, expected ${fmt(expected)} ± ${fmt(tolerance)}${unit}`,
+  );
+}
+
+function same(name, actual, expected) {
+  return record(name, actual === expected, `measured ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`);
+}
+
+function atLeast(name, actual, floor, unit = "") {
+  return record(name, Number.isFinite(actual) && actual >= floor, `measured ${fmt(actual)}${unit}, needs ≥ ${fmt(floor)}${unit}`);
+}
+
+/* ------------------------------------------------------------------- main */
+
+async function main() {
+  const source = readSource();
+  const expectedProgress = 1 - REMAINING_MIN / source.focusMinutes;
+  const tickCount = source.focusMinutes;
+  const step = 360 / tickCount;
+  const litTicks = Math.floor(expectedProgress * tickCount);
+  const axis = nightAxis(source.light);
+  const axisAngle = (Math.atan2(axis.y, axis.x) * 180) / Math.PI;
+  const terminatorAngle = 90 + axisAngle;
+
+  console.log(
+    `\nsource: light ${source.light.x}/${source.light.y}% · night axis ${fmt(axisAngle)}° ` +
+      `(terminator ${fmt(terminatorAngle)}°) · ${tickCount} minutes · ` +
+      `--moon-dark ${source.moonDark} (${fmt(hexLuma(source.moonDark), 1)} luma) · ` +
+      `--moon-glyph ${source.moonGlyph} (${fmt(hexLuma(source.moonGlyph), 1)} luma)`,
+  );
+
+  const app = process.env.APP || process.env.BASE_URL || process.argv[2] ? null : await startApp();
+  const base = process.env.APP || process.env.BASE_URL || process.argv[2] || app.base;
+  console.log(`app:    ${base}${app ? " (started here)" : ""}`);
+  mkdirSync(ARTIFACTS, { recursive: true });
+
+  const cdpPort = 9500 + Math.floor(Math.random() * 400);
+  const profile = mkdtempSync(join(tmpdir(), "verify-visuals-"));
+  const chrome = spawn(findChrome(), [
+    `--remote-debugging-port=${cdpPort}`,
+    `--user-data-dir=${profile}`,
+    "--headless=new",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--hide-scrollbars",
+    "--force-color-profile=srgb",
+    "--window-size=1280,900",
+    "--window-position=-32000,-32000",
+    "about:blank",
+  ]);
+  chrome.stderr.on("data", () => {});
+
+  const shots = {};
+  const report = {};
+  let session = null;
+
+  try {
+    session = await connect(cdpPort);
+    await session.send("Page.enable");
+    await session.send("Runtime.enable");
+    await session.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+    });
+
+    const todos = {
+      state: {
+        tasks: [
+          {
+            id: "vv-1",
+            title: TASK_TITLE,
+            completed: false,
+            priority: "high",
+            tags: [],
+            createdAt: 1,
+            completedAt: null,
+            pomodoros: SESSIONS,
+            focusMinutes: SESSIONS * source.focusMinutes,
+          },
+        ],
+        activity: {},
+        settings: { soundEnabled: false },
+      },
+      version: 1,
+    };
+    const timer = {
+      state: {
+        preset: "classic",
+        mode: "focus",
+        running: false,
+        endsAt: null,
+        remainingMs: REMAINING_MIN * 60_000,
+        sessions: SESSIONS,
+        flushedMs: 0,
+        taskId: "vv-1",
+      },
+      version: 1,
+    };
+    /*
+     * Injected at document creation: the app hydrates from storage before its
+     * first paint, and writing into a mounted page races the clock's own
+     * persistence.
+     */
+    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `try {
+        localStorage.setItem(${JSON.stringify(TASKS_KEY)}, ${JSON.stringify(JSON.stringify(todos))});
+        localStorage.setItem(${JSON.stringify(TIMER_KEY)}, ${JSON.stringify(JSON.stringify(timer))});
+      } catch {}`,
+    });
+
+    const load = async (width, height, dpr) => {
+      await session.send("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor: dpr,
+        mobile: false,
+      });
+      await session.send("Page.navigate", { url: base });
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        try {
+          if (await session.eval('document.readyState === "complete" && !!document.querySelector("main li")')) break;
+        } catch {
+          /* navigating */
+        }
+        await sleep(250);
+      }
+      await session.eval("document.fonts.ready.then(() => true)");
+      await sleep(700);
+    };
+
+    const capture = async (name, clip, scale) => {
+      const shot = await session.send("Page.captureScreenshot", {
+        format: "png",
+        clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h, scale },
+      });
+      shots[name] = shot.data;
+      return shot.data;
+    };
+
+    /* ------------------------------------------------------------- the ring */
+
+    await load(1280, 900, 1);
+    const ring = await inPage(session, readCardRing);
+    if (!ring) throw new Error("the card's ring did not render");
+
+    console.log(`\nring — the card at 1280×900, seeded ${REMAINING_MIN}/${source.focusMinutes} min\n`);
+
+    same("ring/tick-count", ring.angles.length, tickCount);
+    same("ring/major-every", ring.major.filter(Boolean).length, Math.floor(tickCount / 5));
+
+    const angleDrift = ring.angles.map((angle, index) => Math.abs(angle - (90 + (index + 1) * step)));
+    const worstAngle = Math.max(...angleDrift);
+    const worstIndex = angleDrift.indexOf(worstAngle);
+    record(
+      "ring/tick-angles",
+      worstAngle <= 0.05,
+      `${tickCount} marks at ${fmt(step)}° steps; worst Δ ${fmt(worstAngle)}° at mark ${worstIndex + 1} ` +
+        `(${fmt(ring.angles[worstIndex])}°, expected ${fmt(90 + (worstIndex + 1) * step)}°)`,
+    );
+
+    const litIndices = ring.active.map((active, index) => (active ? index : -1)).filter((i) => i >= 0);
+    near("ring/arc-progress", ring.progress, expectedProgress, 0.01);
+    record(
+      "ring/lit-marks",
+      litIndices.length === litTicks &&
+        litIndices.every((index) => index < litTicks) &&
+        ring.active.slice(litTicks).every((active) => !active),
+      `${litIndices.length} lit (${litIndices.map((i) => i + 1).join(",")}), expected the first ${litTicks}`,
+    );
+    same("ring/clock", ring.clock, `${REMAINING_MIN}:00`);
+
+    const expectedScreen = Array.from(
+      { length: tickCount },
+      (_, index) => ((index + 1) / tickCount) * 360,
+    );
+    const ringClip = ring.box;
+    const ringShot = await capture("card.png", ringClip, 2);
+    const ringPixels = await inPage(session, measurePixels, {
+      kind: "ring",
+      shot: ringShot,
+      size: ring.size,
+      angles: expectedScreen,
+      marks: ring.shafts.map((shaft, index) => ({ ...shaft, angle: expectedScreen[index] })),
+      tickInner: ring.tickInner,
+      tickOuter: ring.tickOuter,
+      arcInner: ring.arcR - ring.arcW / 2 + 1.5,
+      arcOuter: ring.arcR + ring.arcW / 2 - 1.5,
+      arcThreshold: 60,
+    });
+    const angular = (a, b) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
+    if (process.env.DEBUG) {
+      console.log(
+        `  debug marks: ${ringPixels.marks.map((mark) => `${fmt(mark.deg, 1)}°/${mark.luma}`).join(" ")}`,
+      );
+    }
+    const markMisses = ringPixels.marks.map((mark, index) =>
+      angular(mark.deg, expectedScreen[index]),
+    );
+    const worstMark = Math.max(...markMisses);
+    record(
+      "ring/pixel-angles",
+      worstMark <= 2 && ringPixels.marks.every((mark) => mark.luma > 33),
+      `${ringPixels.marks.length} marks found, worst Δ ${fmt(worstMark)}° from the ${tickCount} ` +
+        `expected positions, faintest ${Math.min(...ringPixels.marks.map((mark) => mark.luma))} luma`,
+    );
+
+    const markLit = ringPixels.marks.map((mark) => mark.luma);
+    const median = (values) => {
+      const sorted = [...values].sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length / 2)];
+    };
+    const litMedian = median(markLit.slice(0, litTicks));
+    const darkMedian = median(markLit.slice(litTicks));
+    record(
+      "ring/pixel-lit",
+      litMedian - darkMedian >= 25,
+      `lit marks median ${litMedian} luma, unlit median ${darkMedian} luma ` +
+        `(first ${litTicks} vs the last ${markLit.length - litTicks})`,
+    );
+
+    const lastLitAngle = litTicks * step;
+    record(
+      "ring/arc-ends-on-the-tip",
+      angular(ringPixels.arcEnd, lastLitAngle) <= 4,
+      `arc ends at ${fmt(ringPixels.arcEnd)}°, last lit mark at ${fmt(lastLitAngle)}°`,
+    );
+
+    /* ------------------------------------------------- the moon and the strip */
+
+    const loadPhone = async () => {
+      await load(390, 844, 3);
+      const opened = await session.eval(`(() => {
+        const button = [...document.querySelectorAll("main button")].find((element) =>
+          (element.getAttribute("aria-label") || "").startsWith("Enter focus mode"),
+        );
+        if (button) button.click();
+        return Boolean(button);
+      })()`);
+      if (!opened) throw new Error('no "Enter focus mode" button on the page');
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        if (await session.eval(`!!document.querySelector(${JSON.stringify(DIALOG)})`)) break;
+        await sleep(250);
+      }
+      await session.eval("document.fonts.ready.then(() => true)");
+      await sleep(1500);
+    };
+
+    await loadPhone();
+    const room = await inPage(session, readFocusRoom);
+    if (!room) throw new Error("Focus Mode did not open");
+    const dial = room.dial;
+    const moon = room.moon;
+    const strip = room.strip;
+
+    console.log(`\nmoon & strip — Focus Mode at 390×844\n`);
+
+    same("dial/tick-count", dial.angles.length, tickCount);
+    const dialAngleDrift = dial.angles.map((angle, index) => Math.abs(angle - (90 + (index + 1) * step)));
+    const worstDialAngle = Math.max(...dialAngleDrift);
+    record(
+      "dial/tick-angles",
+      worstDialAngle <= 0.05,
+      `${dial.angles.length} marks; worst Δ ${fmt(worstDialAngle)}°`,
+    );
+    same("dial/lit-marks", dial.active, litTicks);
+    near("dial/arc-progress", dial.progress, expectedProgress, 0.02);
+
+    const darkRgb = [1, 3, 5].map((start) => Number.parseInt(source.moonDark.slice(start, start + 2), 16));
+    same("moon/disc-fill", moon.fill, `rgb(${darkRgb.join(", ")})`);
+    same("moon/light-x", moon.light?.x, source.light.x);
+    same("moon/light-y", moon.light?.y, source.light.y);
+
+    const moonProgress = dial.progress;
+    const moonLit = source.minLit + (1 - source.minLit) * moonProgress;
+    const wantNight = nightOffset(moonLit);
+    const wantX = (wantNight * axis.x).toFixed(2);
+    const wantY = (wantNight * axis.y).toFixed(2);
+    record(
+      "moon/night-travel",
+      Math.abs(moon.translate.x - Number(wantX)) <= 0.35 &&
+        Math.abs(moon.translate.y - Number(wantY)) <= 0.35,
+      `measured (${fmt(moon.translate.x)}%, ${fmt(moon.translate.y)}%), expected (${wantX}%, ${wantY}%) for lit ${fmt(moonLit, 3)}`,
+    );
+    const measuredAxisAngle = (Math.atan2(moon.translate.y, moon.translate.x) * 180) / Math.PI;
+    near("moon/night-axis", measuredAxisAngle, axisAngle, 0.3, "°");
+    record(
+      "moon/terminator-band",
+      terminatorAngle >= 52 && terminatorAngle <= 65,
+      `terminator ${fmt(terminatorAngle)}° from the horizontal, documented band 52–65°`,
+    );
+
+    if (!moon.box) throw new Error("the moon's disc did not render");
+    const moonShot = await capture("moon.png", moon.box, 2);
+    const moonPixels = await inPage(session, measurePixels, {
+      kind: "moon",
+      shot: moonShot,
+      light: source.light,
+    });
+    atLeast("moon/lit-side-above-night", moonPixels.litSide - moonPixels.nightSide, 4, " luma");
+    record(
+      "moon/night-side-dark",
+      moonPixels.nightSide <= 30,
+      `night side ${fmt(moonPixels.nightSide, 1)} luma, lit side ${fmt(moonPixels.litSide, 1)}`,
+    );
+    atLeast("moon/light-from-the-left", moonPixels.litLimb - moonPixels.nightLimb, 3, " luma");
+
+    same("strip/count", strip.count, source.cycle);
+    same(
+      "strip/label",
+      strip.label,
+      `${SESSIONS} of ${source.cycle} focus sessions completed`,
+    );
+    const rotations = strip.glyphs.flatMap((glyph) => glyph.rotations);
+    const worstRotation = rotations.reduce(
+      (worst, angle) => Math.max(worst, Math.abs(angle - axisAngle)),
+      0,
+    );
+    record(
+      "strip/terminator-angles",
+      rotations.length === strip.glyphs.length * 2 && worstRotation <= 0.05,
+      `${rotations.length} masks at the night axis; worst Δ ${fmt(worstRotation)}°`,
+    );
+
+    const wantWaists = strip.glyphs.map((_, index) => Math.abs(2 * ((index + 1) / source.cycle) - 1) * 10);
+    const waistDrift = strip.glyphs.reduce(
+      (worst, glyph, index) => Math.max(worst, Math.abs(glyph.rx - wantWaists[index])),
+      0,
+    );
+    record(
+      "strip/terminator-waists",
+      waistDrift <= 0.01,
+      `rx ${strip.glyphs.map((glyph) => fmt(glyph.rx)).join(", ")}, expected ${wantWaists.map((w) => fmt(w)).join(", ")}`,
+    );
+    record(
+      "strip/glyph-height",
+      strip.glyphs.every((glyph) => Math.abs(glyph.ry - 10) <= 0.01),
+      `every ellipse ry ${fmt(strip.glyphs[0]?.ry)} (the disc's radius)`,
+    );
+
+    if (!strip.box) throw new Error("the phase strip did not render");
+    const stripShot = await capture("strip.png", strip.box, 3);
+    const stripPixels = await inPage(session, measurePixels, {
+      kind: "strip",
+      shot: stripShot,
+      clip: strip.box,
+      darkLuma: hexLuma(source.moonGlyph),
+      glyphs: strip.glyphs.map((glyph) => ({
+        x: glyph.box.x,
+        y: glyph.box.y,
+        w: glyph.box.w,
+        h: glyph.box.h,
+      })),
+    });
+
+    stripPixels.forEach((glyph, index) => {
+      const want = (index + 1) / source.cycle;
+      /* Antialiasing along the limb is worth about a twentieth of the disc. */
+      near(`strip/lit-fraction-${index + 1}`, glyph.litFraction, want, 0.05);
+    });
+    stripPixels.slice(0, source.cycle - 1).forEach((glyph, index) => {
+      near(`strip/unlit-luma-${index + 1}`, glyph.darkLuma, hexLuma(source.moonGlyph), 4, " luma");
+      record(
+        `strip/unlit-hue-${index + 1}`,
+        glyph.darkSpread <= 4,
+        `channel spread ${glyph.darkSpread}, expected ≤ 4 (hue-less)`,
+      );
+    });
+    atLeast("strip/banked-warmth", stripPixels[0].litWarmth, 30, " r−b");
+    const pendingWarmth = stripPixels[source.cycle - 1].litWarmth;
+    record(
+      "strip/pending-neutral",
+      Number.isFinite(pendingWarmth) && Math.abs(pendingWarmth) <= 15,
+      `full moon's lit side r−b ${pendingWarmth}`,
+    );
+
+    report.room = room;
+    report.ring = ring;
+    report.strip = stripPixels;
+  } catch (error) {
+    console.log(`FAILED: ${String(error?.stack ?? error?.message ?? error)}`);
+    process.exitCode = 1;
+  } finally {
+    if (session) session.close();
+    chrome.kill();
+    if (app) app.stop();
+    for (const [name, data] of Object.entries(shots)) {
+      writeFileSync(join(ARTIFACTS, name), Buffer.from(data, "base64"));
+    }
+    writeFileSync(
+      join(ARTIFACTS, "report.json"),
+      JSON.stringify({ source, ...report, results }, null, 2),
+    );
+    console.log(`\nartifacts: ${ARTIFACTS}`);
+  }
+
+  const drifted = results.filter((result) => !result.ok);
+  if (drifted.length) {
+    console.error(`\n${drifted.length} of ${results.length} measurements drifted:`);
+    for (const result of drifted) console.error(`  - ${result.name}: ${result.detail}`);
+    process.exitCode = 1;
+  } else if (results.length) {
+    console.log(`\nall ${results.length} measurements hold`);
+  }
+}
+
+await main();

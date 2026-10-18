@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:visuals": "node scripts/verify-visuals.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

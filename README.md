@@ -212,6 +212,18 @@ five viewports; and reads the contrast of eleven text elements out of the
 rendered pixels. `.freebuff/frame-map.mjs` prints the frame as text for when a
 screenshot cannot be looked at.
 
+A design that has to be *looked at* still needs a way to be checked without
+looking, and the parts that are geometry rather than styling have one:
+`npm run verify:visuals`. It seeds a fixed session into a headless Chrome,
+opens the room, reads the card's marks, the moon's light and the strip's masks
+out of the DOM, reads their pixels back off screenshots, and compares both with
+what the source implies — the tick angles and lit count, where the arc stops,
+`MOON_LIGHT`'s night axis and travel, `--moon-dark`, and each glyph's lit area.
+It starts a dev server itself, exits non-zero and lists every measurement that
+drifted, so a quarter-turn of the graduations or a token moved in one place
+fails the command rather than the design review. The `.freebuff/*` probes named
+above are how those numbers were chosen; this is the one that stays.
+
 ## Data & persistence
 
 Everything lives in `localStorage` under three keys (`cadence:todos:v1`,
