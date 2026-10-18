@@ -41,7 +41,14 @@ export function ProgressRing({
 
   const tickCount = ticks?.total ?? 0;
   const majorEvery = ticks?.majorEvery ?? 5;
-  const lit = Math.round(clamped * tickCount);
+  /*
+   * How many graduations the arc has reached.
+   *
+   * Floored rather than rounded: the ticks light "as the arc passes them" (see
+   * below), and rounding lit each one half a step — 12° of arc at fifteen ticks
+   * — before the tip arrived, so the row of lit marks ran ahead of the light.
+   */
+  const lit = Math.floor(clamped * tickCount);
 
   return (
     <div
@@ -87,7 +94,21 @@ export function ProgressRing({
         {tickCount > 0 &&
           Array.from({ length: tickCount }).map((_, index) => {
             const major = (index + 1) % majorEvery === 0;
-            const angle = ((index + 1) / tickCount) * 360;
+            /*
+             * The svg this sits in is turned a quarter turn counter-clockwise
+             * (`-rotate-90`, which is what puts the arc's start — and so the
+             * light's edge — at twelve o'clock), and a child's own rotation
+             * composes on top of that, so the ninety degrees have to be added
+             * back here.
+             *
+             * Without them the whole graduation sat a quarter turn behind the
+             * arc: the lit marks glowed at ten o'clock under the dark track
+             * while the arc passed grey ones at one o'clock, and the
+             * five-minute marks landed at 1, 5 and 9 instead of at 12, 4 and 8.
+             * `.freebuff/ring-probe.mjs` reads the tick angles back off the
+             * pixels.
+             */
+            const angle = ((index + 1) / tickCount) * 360 + 90;
             const outer = radius - strokeWidth / 2 - 2.5;
             const inner = outer - (major ? 8 : 4.5);
             const active = index < lit;

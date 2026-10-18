@@ -57,8 +57,9 @@ export const riseIn: Variants = {
  * should feel immediate.
  *
  * Only transform and opacity are animated on the big layers — the one filter
- * in the move lives on the ring itself (`components/focus-mode.tsx`), where it
- * is small enough to stay compositor-friendly.
+ * in the move lives on the ring itself (`components/progress-ring.tsx`, drawn by
+ * `components/focus/instrument.tsx`), where it is small enough to stay
+ * compositor-friendly.
  */
 export const focusShell: Variants = {
   hidden: { opacity: 0 },

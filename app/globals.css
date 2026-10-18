@@ -72,6 +72,52 @@
 @layer base {
   :root {
     color-scheme: dark;
+    /*
+     * The moon's own dark — the unlit half of the disc and the night side that
+     * slides off it, one value so the seam between them can never be seen
+     * (components/focus/geometry.ts). A plain custom property rather than a
+     * @theme token: nothing here is a Tailwind utility, and Tailwind emits only
+     * the theme variables it sees used in class names.
+     *
+     * It lives in the stylesheet rather than in the geometry module because it
+     * is the one number in the moon that is a judgement rather than a
+     * measurement — how dark the unlit side reads against this sky — and a
+     * judgement wants to be *seen*, painted through the real component at
+     * several values at once (`.freebuff/moon-samples.mjs`).
+     *
+     * It is a *lifted* grey, and that is the one thing about it worth knowing:
+     * measured at 1280×860 the strip's own sky is 7.5 luma beside a pending
+     * glyph, and the unlit body was 8.2 — the same number, which made a
+     * three-quarter moon's dark crescent not a crescent but a hole, and made the
+     * dial's unlit half a dark hole behind the clock. #12151f sits at 21, a step
+     * above the sky, so the unlit half reads as a body — and still a fifth of a
+     * *pending* glyph's own lit lune (98 of 21), which is what keeps the phase
+     * legible at the row's dimmest end (all of it in the sheet's numbers,
+     * docs/motion-budget.md).
+     *
+     * The dial and the strip are two sizes of one judgement, and they have been
+     * answered differently every time they were asked: beside a 300px disc a
+     * grey competes with the clock and #12151f was called *much better*; in a
+     * 14px glyph it was too close to the sky, so the strip took a step up of its
+     * own. So the value is two tokens — the dial keeps this one, the strip reads
+     * `--moon-glyph` below. They are separate *because* they measured apart, not
+     * because the moon has two bodies.
+     */
+    --moon-dark: #12151f;
+    /*
+     * The phase strip's unlit body: #1c1c1c, **28 luma, hue-less**.
+     *
+     * The third sample sheet (2026-10-18) asked for the black of the unlit side
+     * to stop being a *colour*: #12151f is a blue-black, and beside a row of
+     * moons at 14px its blue read as a hole rather than as a body in shadow.
+     * Three lifts were painted twice over, once with a trace of the sky's blue
+     * and once with the hue taken out, and E — the middle lift, hue-less — was
+     * the one chosen; the dial kept the blue-black it already had. At 28 luma it
+     * sits a step and a half above the row's sky (8.3) and still well under the
+     * dimmest lit lune beside it (a pending gibbous at 97), which is what keeps
+     * the dark crescent a crescent rather than a hole or a wedge.
+     */
+    --moon-glyph: #1c1c1c;
   }
 
   html {

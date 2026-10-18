@@ -50,20 +50,34 @@ npm run typecheck  # tsc --noEmit
   taken literally: a deep-space gradient, a starfield, a galactic band, drifting
   motes and a soft nebula that drifts and never scales, film grain, and two
   orbital shells breathing around the instrument. At the centre is the mark's
-  own composition at full size — a dark moon, lit from the upper left, with a
-  satellite on a slow orbit around it and the progress ring for a dial — and on
-  the moon's face a large mono clock, whose minutes carry the weight while the
-  seconds sit back. The moon is the session itself in second form: a new session
-  opens it as a hairline crescent, and its lit fraction waxes exactly with the
-  clock until the face is full as the time runs out. Under it the cycle reads the
-  same way: four moon phases — crescent, half, gibbous, full — one per session
-  in the cycle, lit amber as you bank them, so the full moon at the end of the
-  row is the one that buys the long break. Staggered entrance choreography,
+  own composition at full size — a dark moon, lit from the left with the source
+  below the middle, that fills *across* the disc as the session runs: a new
+  session opens it as a hairline crescent on its left limb, and the light crosses
+  toward the right, where the night side is the last of it to go. (The terminator
+  that draws therefore runs 55° from the horizontal, walked down from a
+  near-upright 71° and back a step from the 61° that followed it — the four small
+  moons below are turned by the same number.) A satellite rides a slow orbit
+  around it, the progress ring is the dial, and on the moon's face a large mono
+  clock carries the minutes while the seconds sit back. The moon is the session
+  itself in second form — its lit fraction waxes exactly with the clock until the
+  face is full as the time runs out. Under it the cycle reads the same way: four
+  moon phases — crescent, half, gibbous, full — one per session in the cycle,
+  lit amber as you bank them: each is a real phase, its dark side the moon's own
+  grey — a hue-less step *above* the sky it sits on (28 luma against 8.3,
+  measured beside a pending glyph at a pane-sized room; the dial keeps its own
+  blue-black at 21), so the unlit half reads as a body in shadow rather than as a
+  hole, and it needs no outline — and its terminator the
+  ellipse a projected
+  great circle makes, so the third of them is
+  legibly the step before full (and its dark crescent exactly the mirror of the
+  first one's lit crescent, half a turn round) and the full moon at the end of
+  the row is the one that buys the long break. Staggered entrance choreography,
   session-phase shockwaves and a completion celebration, all in the same
   language. Only the essentials: the task, the timer, and Pause / Complete / Skip
-  / Reset / Exit. `Esc` leaves any time. Opening it *starts the session* — one
-  click, no second start — and so does the advance to the next task when you
-  complete one from inside it.
+  / Reset / Exit — and those are the app's own `<Button>` at the card's own sizes,
+  not a second set of buttons that merely looks like them. `Esc` leaves any time.
+  Opening it *starts the session* — one click, no second start — and so does the
+  advance to the next task when you complete one from inside it.
 - **Phase tones** — focus is the only colourful state (indigo); every break
   drains to hue-less ivory, so the shift is felt before it is read. The nebula,
   ring, orbit, moon-light, controls and eyebrow all follow the same tone.
@@ -115,17 +129,48 @@ npm run typecheck  # tsc --noEmit
 ```
 app/            layout, page shell, global styles + design tokens (@theme)
 components/     feature UI (list, focus mode, pomodoro, stats…) + ui/ (shadcn)
-hooks/          timer engine, global keyboard shortcuts, page visibility
+hooks/          timer engine, global keyboard shortcuts, page visibility, ring sizing
 lib/            pure helpers (activity, format, sound, actions) + motion & tone systems
 store/          Zustand stores (todos, timer, routines, transient UI)
 docs/           the mark spec (geometry, clearances, regeneration)
 ```
 
+Focus Mode is the one full-screen surface, so it is built from parts rather than
+one file. `components/focus-mode.tsx` owns the session — the store link, the
+announcement, the departure's freeze, the task-completion flow — and composes
+`components/focus/`, where each module owns one concern:
+
+```
+components/focus/
+  geometry.ts     moon light axis + `nightOffset`, orbit maths, burst table (no JSX)
+  room.tsx        the sky, the nebula, the twinkle, the motes, the grain
+  moon.tsx        the disc, its limb, and the phase glyph at marker size
+  orbit.tsx       the satellite on its slow orbit
+  instrument.tsx  the dial: halo, moon, orbit, shockwave, ring and clock
+  celebration.tsx what completing the task looks like
+  arrival.tsx     the two veils and the light sweep
+  beat.tsx        the phase hand-off
+  top-bar.tsx     the mark, the preset, the way out
+  controls.tsx    run/pause, complete, skip, reset
+  readouts.tsx    the cycle strip, the day's total, the key hints
+```
+
+The dial's size is measured from the room it has rather than the viewport
+(`hooks/use-ring-size.ts`), and the gesture each layer is allowed — which ones
+never transform, which only fade — is decided by the frame budget, not by taste.
+
 ## Design system
 
 Tokens live in `app/globals.css` under `@theme` (`background`, `foreground`,
 `ivory`, `primary`/`primary-soft`, `achievement`, surfaces 1–3, hairline and
-surface overlays, the `--text-*` type scale, and the sans/mono families).
+surface overlays, the `--text-*` type scale, and the sans/mono families). One
+more sits outside `@theme`, on `:root`, because the moon's unlit side is a
+judgement rather than a system colour: `--moon-dark`, which the dial's disc and
+the night side sliding off it are both painted in, and `--moon-glyph`, one step
+lighter, for the 14px moons in the cycle strip. Plain custom properties because
+Tailwind emits only the theme variables it sees used in class names, and the two
+tokens in the app whose *values* were picked by eye off samples
+(`docs/motion-budget.md`).
 Reusable layer: `.panel` (matte gradient-bordered surface), `.inset`, `.kbd`,
 `.hairline`, `.ambient` + `.bloom` (a soft glow, faded by a radial mask rather
 than a 90px gaussian blur — see docs/motion-budget.md), `.skeleton`, `.grain`,
@@ -140,6 +185,32 @@ of hard-coding colours. Every animation respects `prefers-reduced-motion`.
 The Focus Mode entry/exit has a measured frame budget — what it is, how to
 re-measure it, and which optimisations it already paid for are in
 [docs/motion-budget.md](docs/motion-budget.md).
+
+### Focus Mode's chrome is the app's chrome
+
+A full-screen room is where a second design language creeps in, so the room's
+chrome is not designed, it is *borrowed*: every control is
+`components/ui/button.tsx` (the card's primary in focus and its ivory in a break,
+the card's outline button for Complete, skip and reset, the header's own outline
+button for the way out), the preset chip is the header's `.inset` well, and the
+labels are set in the shared `--text-*` scale. What is left for the room to
+decide is only which variant and how much air — and the room spends it on *one
+line*: all four controls are `lg` (48px, same radius) on a single gap, where the
+card's row steps down to 40px icons after its primary. The row is a line under an
+instrument rather than a primary with two quieter things beside it, so a shared
+frame is what reads as balanced; `.freebuff/asym-probe.mjs` measures every row of
+the room against the room's own axis, and the row's heights, radii and gaps.
+
+Its quiet text is ivory at 70% rather than `text-muted-foreground`. The muted
+token is tuned for graphite; the room's quiet lines sit on the nebula, where
+measured it lands at 4.0–4.4:1 — under AA on the brightest band of sky. Ivory at
+70% is the same weight of grey one step lighter and reads 5.9–7.7:1 across the
+whole frame. `.freebuff/design-probe.mjs` is the measurement: it compares every
+button in the room against the app's own, attribute by attribute; checks that the
+orbit's arc clears the title and the controls and that the room cannot scroll at
+five viewports; and reads the contrast of eleven text elements out of the
+rendered pixels. `.freebuff/frame-map.mjs` prints the frame as text for when a
+screenshot cannot be looked at.
 
 ## Data & persistence
 

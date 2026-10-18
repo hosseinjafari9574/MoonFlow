@@ -14,6 +14,9 @@ node .freebuff/perf-focus.mjs --layers   # + which layer repainted, how often
 node .freebuff/perf-focus.mjs --trace    # + browser task names, paint cost per node
 node .freebuff/perf-focus.mjs --profile  # + CPU profile, functions by self time
 node .freebuff/perf-focus.mjs --entryBisect   # paired A/B on the arrival
+node .freebuff/perf-focus.mjs --entryBisect --lunarBisect
+                                              # the arrival with the lunar room
+                                              # hidden, between plain arrivals
 node .freebuff/perf-focus.mjs --exitBisect    # paired A/B on the departure
 node .freebuff/perf-focus.mjs --ghostProbe    # is anything invisible mounted at
                                               # start-up?
@@ -624,19 +627,35 @@ language:
   the light's axis. How far it slides is the session: its *lit fraction* is the
   clock's elapsed fraction, floor-ed so a new session keeps a sliver, so the moon
   waxes from a hairline crescent to a full face as the clock runs out
-  (`moonLit` / `nightOffset` in `components/focus-mode.tsx`). The travel is a
+  (`nightOffset` in `components/focus/geometry.ts`, drawn by
+  `components/focus/moon.tsx`). The travel is a
   `translate` on a promoted layer and the wash's own opacity is quantised to the
   same 5% steps the halo's is, because the alternative — masking the light with
   the crescent-shaped bit of a second disc, the construction the mark itself is
   built from — re-rasterises the whole disc on every one of a session's ~7500
   ticks. A third layer carries the limb's rim light and falloff with no fill of
-  its own, so a new moon is still a moon: measured on the shipped build, the
-  unlit disc reads ~19 against 13–19 of air outside it, and the lit one ~29.
-- **The cycle strip is four static rasters.** Four 14px moon phases, each a disc
-  cut by another through an SVG mask — the mark's own construction at the size of
-  a marker — with the offset inverted from the fraction the same way the big
-  moon's is. Nothing in the strip animates: banking a session only changes which
-  of two states a glyph is in, a colour and a drop-shadow.
+  its own, so a new moon is still a moon: measured on the shipped build (mean of
+  a 7×7 patch, 0–255), the lit quadrant reads **52–53** across runs against **20**
+  on the unlit side and **12** of air between the disc and the ring below it — a sphere lit
+  from the **lower left**, standing clear of its own sky. (The design pass below
+  raised the lit side from ~29; the unlit side and the air are where they were.
+  The light was moved to the lower left after it, which mirrors both patches and
+  the strip — see "The direction" below.)
+- **The cycle strip is four static rasters.** Four 14px moon phases (16px for one
+  pass in between — see "The alignment pass" below). A phase is
+  not a bite out of a disc: its terminator is a *great circle on the sphere*, so
+  the mask is the half-plane the light occupies — cut by the diameter through the
+  centre, which is where a half moon's terminator lies — plus an ellipse through
+  both poles whose waist is `|2k − 1|` of the radius, turned to the same
+  `MOON_NIGHT_AXIS` the instrument slides along (`phaseGeometry` in
+  `components/focus/geometry.ts`). Under the lit lune each glyph carries a body of
+  the room's own dark (`MOON_DARK`) and over it a hairline limb (`PHASE_LIMB`), so
+  the *unlit* part of a phase is a dark crescent rather than a tint of the phase
+  colour. The two-disc construction this replaced could not draw that shape — its
+  horns stop short of the poles — which is why a three-quarter glyph sat in the
+  disc's corner looking like a filled disc (see "The dark crescent" below).
+  Nothing in the strip animates: banking a session only changes which of two
+  states a glyph is in, a colour and a drop-shadow.
 - **Nothing new scales or blurs.** The halo — still the instrument's first
   child, which `visual-check.mjs` samples — animates opacity with constant
   targets, and the instrument keeps its own `will-change: transform` layer.
@@ -709,34 +728,1046 @@ time.
 The row under the session is four moon phases rather than four dots: even quarters
 of a disc — crescent, half, gibbous, full — so one banked session is one phase
 further through the cycle, and the full moon at the end of the row is the one that
-buys the long break. Each glyph is the mark's two-disc construction at 14px, with
-the offset inverted from its fraction exactly as the big moon's night side is.
+buys the long break. Each glyph is a *phase* at 14px: the light's half-plane and
+an ellipse through both poles, its waist `|2k − 1|` of the radius
+(`phaseGeometry`), which is the terminator a real moon has.
 `.freebuff/phase-probe.mjs` seeds the clock twice — nothing banked, then two
-sessions — and reads the row off the pixels at DPR 3, where a glyph is 42px:
+sessions — and reads the row off the pixels at DPR 3, where a glyph is 48px. It
+then compares every interior pixel with that geometry, skipping the limb's own
+hairline (which is drawn over the disc's outer 10%) and the antialiased seam along
+the terminator itself:
 
-| glyph | phase asked for | lit fraction, from pixels |
-| --- | --- | --- |
-| 1 | 0.25 | 0.234 |
-| 2 | 0.50 | 0.532 |
-| 3 | 0.75 | 0.796 |
-| 4 | 1.00 | 1.000 |
+| glyph | phase asked for | interior recognised as lit | the same pixels, per the geometry | pixels compared |
+| --- | --- | --- | --- | --- |
+| 1 | 0.25 | 0.257 | 0.187 | 781 |
+| 2 | 0.50 | 0.534 | 0.504 | 889 |
+| 3 | 0.75 | 0.809 | 0.819 | 781 |
+| 4 | 1.00 | 1.000 | 1.000 | 996 |
+
+**Agreement is 1.0000 on all four.** That is the check this pass added, and it is
+the one the construction it replaced would have failed: the bite's boundary sat up
+to four units off the ellipse. The two shares differ by up to 0.07 for the
+three-quarter glyph, and that gap is the *measurement*, not the glyph: a crescent
+hugs the rim, so its outer band lies under the hairline and any area read off the
+interior is biased high — which is why the table gives the model's share on the
+same pixels (0.187 / 0.504 / 0.819 / 1.000, matching the pixels to three decimals)
+and why the phase's *own* fraction — ¼, ½, ¾, full — is asserted where it is
+exactly knowable: off the terminator's geometry in the DOM (waist 5 / 0 / 5 / 10
+of a radius of 10, ry the radius, turn −58.4° = the night axis).
 
 Banking two sessions leaves the shapes and their order where they were — the same
-four lit fractions within 0.04 in both passes — and turns the first two amber
-(`rgb(233, 184, 114)`, measuring 222,176,110 in the pixels) while the last two stay
-ivory. The aria-label still reports the count (`2 of 4 focus sessions completed`),
-so the shapes are decoration over the same announcement, not a replacement for it.
+four lit fractions within 0.03 in both passes — and turns the first two amber
+(`rgb(233, 184, 114)`, measuring 225,178,110 in the pixels) while the last two stay
+ivory. The deep dark of a banked glyph reads `rgb(8, 8, 14)` — the body's colour,
+no amber in it — and the aria-label still reports the count (`2 of 4 focus sessions
+completed`), so the shapes are decoration over the same announcement, not a
+replacement for it.
 The strip is one raster each and the settled budget is unmoved: in
 `.freebuff/idle-probe.mjs`, hiding all four glyphs reads 60fps, p95 16.8ms and 0
 frames past 33ms against a control with 0 as well.
 
-**The full three-phase table could not be recorded.** `perf-focus.mjs` refused
-every run of this pass: the `list` control kept catching a single frame past
-33ms (max 50–67ms) on this machine, and the harness refuses a run whose controls
-are not clean, by design. So `entry`, `idle` and `exit` are **unmeasured** here,
-not passed — the same caveat the exit's own re-take carries above. The one valid
-run taken during the pass, against a `next dev` server before the build measured
-above, read the documented shape — `idle` 52.5fps with 6 frames past 33ms,
-`exit` p95 49.3ms, `entry` p95 66.6ms — but a dev build is not the artifact the
-budget is written against, so those numbers price the environment, not the
-change.
+### The budget, taken
+
+Thirteen attempts of `perf-focus.mjs` through the retry loop this document
+prescribes produced **11 valid runs** and two refusals — each a single `list`
+frame at 33ms, the same hairline that refused every run during the pass — so the
+pass's refusal was the machine, as suspected, and not the build. The table below
+is the median of those eleven, every control clean in every one of them, taken
+against the production build (`7Vo6sVXUuFF5zUYoLFR1Z`) and printed by the
+document's own `perf-summary.mjs`:
+
+| Phase | fps | median | p95 | max | > 33ms | > 50ms | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `calibration` | 60.1 | 16.7 | 16.8 | 16.8 | 0 | 0 | control |
+| `list` | 60.1 | 16.7 | 16.8 | 16.9 | 0 | 0 | control |
+| `listPaused` | 60.1 | 16.7 | 16.8 | 16.8 | 0 | 0 | control |
+| `entry` | 44.6 | 16.7 | 49.8 | 300.4 | 7 | 4 | **over p95** |
+| `idle` | 60.1 | 16.7 | 16.7 | 16.8 | 0 | 0 | **pass** |
+| `exit` | 50.7 | 16.7 | 49.9 | 66.6 | 7 | 1 | **over p95** |
+
+Three things to read out of it.
+
+**The settled row is the one the design had to hold, and it holds.** `idle` is
+60.1fps, p95 16.7ms and **0** frames past 33ms at the median of eleven runs — the
+same row the idle probe reported, now taken by the budget harness itself, and the
+row the budget calls the state a user sits in for 25 minutes. The lunar room is
+indifferent to it.
+
+**`entry` and `exit` are outside the p95 line, and were before this pass.**
+`entry` p95 **49.8ms** and `exit` p95 **49.9ms** against the budget's 33.4ms.
+Both rows were already failing on the clock-pass baseline taken immediately
+before the lunar work — `entry` p95 33.9ms, `exit` p95 49.9ms — and the exit
+lands on exactly the same 49.9 here, which reproduces the "does not reproduce"
+re-take above: the ~50ms departure is the reproducible mode on this machine and
+the 33.4ms one is the exception. The arrival's per-run p95s across the eleven
+runs are 16.8, 33.2, 33.3, 48.3, 49.3, 49.8, 49.8, 50.1, 66.6, 66.6, 66.6 — the
+bimodality the clock pass documented, one build producing both modes — so the
+row's distance from the clock-pass median cannot be read as a regression on this
+instrument. What the budget says about these two rows is unchanged, and it is
+still "outside": the design does not pass the arrival or the departure, and it
+did not when it was measured last.
+
+**The new room is not what that residue is in.** The table cannot say whether the
+dark-space layers *caused* it, so the same instrument was pointed at them. A new
+`--lunarBisect` condition in `.freebuff/perf-focus.mjs` (inside `--entryBisect`)
+injects a stylesheet *before* the click that hides the whole of the new room —
+starfield, galactic band, both breathing shells, twinkle, motes and the
+satellite's orbit, `matched: 23`, counted rather than assumed — and brackets it
+with plain arrivals in the same browser session:
+
+| session | plain arms (p95 / frames > 33ms) | room hidden (p95 / frames > 33ms) |
+| --- | --- | --- |
+| 1 | 34.4 / 13, 50 / 18, 49.9 / 15 | 49.9 / 15, 34.7 / 12 |
+| 2 | 33.7 / 15, 49.9 / 18, 33.7 / 17 | 33.4 / 11, 49.9 / 17 |
+| 3 | 48.7 / 12, 34.8 / 21, 49.9 / 17 | 35.7 / 14, 34.2 / 15 |
+
+Nine plain samples sit at p95 33.7–50 with 12–21 frames past 33ms; six hidden
+samples sit at p95 33.4–49.9 with 11–17. The hidden arm is not better — both
+modes appear in both arms and the counts overlap — so the arrival's dropped
+frames are not the new room's first paint. That is the idle probe's finding
+about the settled state, now made about the arrival, and it is why the verdict
+for this pass is **the settled budget holds and the entrance and the departure
+stay where they were**, not "the whole budget passes".
+
+The pass's own dev-server reading (`idle` 52.5fps with 6 frames past 33ms,
+`exit` p95 49.3ms, `entry` p95 66.6ms) is left above as what it was: a dev build
+pricing the environment.
+
+## The design pass (2026-10-15)
+
+A craft pass over the room's chrome and its centrepiece: the controls became the
+app's own `<Button>`, the top bar's preset chip became the header's `.inset` well,
+the labels moved onto the shared `--text-*` scale, and the moon's lit side was
+raised so the disc reads as a sphere rather than as a hole behind the clock.
+
+**No motion changed, and that is the point of recording it here.** Same layer
+count, same animations, no new keyframes, no new `will-change`, nothing added that
+scales or blurs. The three things that could have moved the budget were checked
+rather than assumed:
+
+- **The dial's arc got thinner** (6 → 5.5px in focus, 5 → 4.5 mid-session). The arc
+  is the one gradient-stroked circle that repaints on every 200ms tick, so its
+  repaint *area* is a budget quantity: a thinner stroke is strictly less of it.
+- **The moon's light layer got brighter**, not bigger — same single gradient, same
+  quantised `wash` opacity, same transform on the night side. `wax-probe.mjs`
+  still passes end to end, with the terminator and the lit fraction per position
+  unchanged (the material table above carries the new levels).
+- **The dial's clearance was fixed by arithmetic, not by air.** `use-ring-size.ts`
+  now takes the orbit's overhang *and* the stage's own computed `row-gap` out of
+  the ring's allowance, where before it subtracted a flat 96px and so let the
+  orbit's arc cross the control row on a short viewport. The dial is smaller on
+  exactly the viewports where it was too big, and unchanged on the desktop where
+  the width is what binds.
+
+The settled state is still the row that matters, and it still holds: on the
+production build after the pass, `.freebuff/idle-probe.mjs` reads 60.0–60.2fps
+with p95 16.8ms and **0** frames past 33ms in the control and in every arm
+(`no-moon-light`, `no-moon-night`, `moon-no-tween`, `no-phase-strip`), with no
+console problems. `visual-check.mjs` 41/41, `wax-probe.mjs`, `phase-probe.mjs`
+and `focus-shots.mjs` all pass on the same build, and `e2e-timer.mjs` 29/29 — no
+behaviour moved.
+
+What this pass did add is a check for the *design* claims themselves, since none
+of the probes above can see a button's radius. `.freebuff/design-probe.mjs`
+compares every control in the room against the app's own button — radius, height,
+weight, label size, padding, gap, transition, focus ring, with the page's recede
+(`scale: 0.94`) normalised out so the reference is not compared to itself at 6%
+off — and then measures what the pass changed: the orbit's clearance above and
+below the drawn dial at five viewports (22px / 77px on the desktop, 10px / 16px on
+a phone), and the contrast of eleven text elements read out of the rendered pixels
+(5.9–17.5:1 across the room's own text, plus the app's accent button reported as
+the 4.68:1 it is).
+Its verdict on the thing this document cares about is the same as the idle
+probe's: 60fps, p95 16.8ms, 0 frames past 33ms.
+
+## The lune pass (2026-10-16)
+
+Two asks, both about which way the moons face and how much of them you can see:
+the room's moon was turned to fill from the **lower left** up the disc, the four
+small moons with it, and the phases short of full were given a **dark crescent**
+you can actually see — the third of the four, the one before full, most of all.
+
+### The direction
+
+A session opens on the moon's bottom-left limb and the light climbs the face toward
+the top right, where the night side is the last of the phase to go. That is the
+mark's own direction: the crescent cut out of the mark's disc (the bite at
+`14.15, 9.6` against the moon at `11.2, 11.8`) sits above and to the right of it,
+so the app's mark has always been lit from the lower left — the room was the one
+thing facing the other way. (A real waxing moon is lit from the right; this one is
+the app's own.)
+
+**The angle this put the terminator at was not kept.** Left as a shallow diagonal
+— **31.6° from the horizontal** — a half moon read as a lens leaning in a corner
+rather than as a moon cut by an edge, and the pass below moved the light to the
+left of the disc's middle, where the terminator runs **71°**. What follows in this
+section is the pass that set the direction; the numbers in it are the ones that
+were shipped then.
+
+One constant does the work. `MOON_LIGHT` in `components/focus/geometry.ts` is the
+single point the light comes from, 34% across the disc's box and 76% down it; the
+surface gradient is drawn at it and `MOON_NIGHT_AXIS` is derived from it as the unit
+vector pointing *away* from it. The night side's travel reads that axis, and so does
+the four small moons' terminator, which is why they cannot end up facing different
+ways; the limb's own rim light and far falloff follow the same direction by hand
+(`inset 1px -1px 0` for the rim, `inset -22px 26px 62px` for the falloff).
+
+Checked off the pixels rather than the source, and by the probes that were already
+there:
+
+- `design-probe.mjs` reads the quadrants: the big moon is brightest on its
+  **bottom-left** (42 against 28 top-right), a new session's crescent is lit on its
+  **bottom-left** limb (169 against 33), and the strip is darkest on its
+  **upper-right** limb all the way along (46/33, 85/33, 45/19 for the three phases
+  short of full). Every phase before the full one keeps a dark limb — the dimmest
+  quadrant at 0.19–0.33 of its brightest — and the full session has none of the
+  room's dark left in its disc: **0** of 136 interior pixels, against 62, 51 and 33
+  on the three short ones.
+- `wax-probe.mjs` walks the terminator at eight positions through a session. It now
+  takes the axis off the *shipped gradient* instead of a copy of the constant — it
+  reads `light {x: 34, y: 76}` back out of the markup, and `axis {x: 0.524, y:
+  -0.852}` off that — so a mis-flipped light fails as the 117° error it is instead
+  of as a mismatch against a frozen table. The terminator then lands within 0.02 of
+  where the two discs put it at every measurable position, and reads "beyond 0.93R"
+  where the face is full.
+- `phase-probe.mjs` measures the strip against the same shared axis, so the row
+  follows the instrument for free.
+
+### The dark crescent, and the shape of a phase
+
+The four small moons used to draw their unlit part as a *tint* of the phase colour
+(`currentColor` at 16%) — enough to make a crescent read, not enough to make a
+moon: a tinted unlit side glows. Measured on the build before the change,
+glyph 3's unlit crescent sat at **58** luma against the **19** of the sky behind
+it, i.e. brighter than the sky it was supposed to be darker than, so the row read
+as four filled discs rather than as four phases. The glyph the brief named is the
+third — three quarters lit, the step before full — which is exactly the session
+that buys the long break, and it was indistinguishable from it.
+
+That took a body of the room's dark (`MOON_DARK`), the lit lune laid over it, and
+a hairline limb (`PHASE_LIMB`, one unit of the glyph's 24-unit canvas) last so the
+dark side ends on a real edge instead of dissolving into a sky of nearly the same
+darkness — **a limb that the next pass removed** (it was invisible over the lit
+lune and a visible rim over the dark body, i.e. it made the two crescents differ;
+with a body darker than the sky the edge is the body's own): the unlit crescent reads **8.2** against a sky of **27.2**, the room's
+floor, where a dark crescent belongs, and the deep dark of a banked glyph reads
+`rgb(8, 8, 14)` — the body's own colour with no amber in it — while the same
+glyph's lit lune stays at 189.
+
+**And the shape was still wrong, which the pixels said plainly and no number
+here did.** A phase is not a bite out of a disc: its terminator is a *great circle
+on the sphere*, so in projection it is an ellipse through both poles of the moon's
+disc with its waist `|2k − 1|` of the radius. Two discs of the *same* size — the
+construction the mark itself is built from — cross `acos(d/2r)` from the axis, so
+their unlit region's horns always stop short of the poles, and the fuller the moon
+the worse it reads: at three quarters the old glyph's dark part spanned **101°** of
+the rim where a moon's spans 180°, hanging in the disc's corner like a lens with
+the far limb still lit. Every reading above passed while that was true — a lens can
+be exactly as dark as a crescent.
+
+So the glyph is drawn as a moon now. The mask is the half-plane the light occupies
+(cut by the diameter through the centre, which is exactly where a half moon's
+terminator lies) plus an ellipse through both poles turned to the night axis
+(`phaseGeometry`). Drawn at 14px, the third glyph is a dark crescent running from
+pole to pole down the upper-right limb: 189 lit, 8.7 dark, a sky of 27.
+
+The instrument keeps its sliding two-disc night side, because a transform on a
+promoted layer is what keeps a session's ~7500 ticks off the paint path; the two
+are the same object lit from the same side that part company on how the terminator
+is made, and the strip — four static rasters — can afford the true one.
+
+One consequence worth recording: `drop-shadow` is cast from an element's rendered
+alpha, so the glow a banked moon carries now follows the *disc* rather than the lit
+lune alone — the sky just outside a banked glyph measures ~27 against 12–19 before.
+Nothing about the budget moves for it: the shadow is a filter on a static element,
+and `idle-probe.mjs` still reads `no-phase-strip` at 60fps, p95 16.8ms and 0 frames
+past 33ms against a clean control.
+
+### The checks
+
+Production build `nSuxaOSjWKq2CmGt1R-1-`, with no source file newer than its
+`BUILD_ID`:
+
+| check | result |
+| --- | --- |
+| `tsc --noEmit` / `next build` | exit 0 / exit 0 |
+| `phase-probe.mjs` | **14/14** — four checks added for this pass |
+| `design-probe.mjs` | **42/42**, including the limb direction and the room's dark counted in each glyph's own disc |
+| `wax-probe.mjs` | **13/13**, the terminator within 0.02 of the design at every measurable position |
+| `visual-check.mjs` | **41/41** |
+| `focus-shots.mjs` | all checks, 5 viewports |
+| `e2e-timer.mjs` | **29/29** |
+| `idle-probe.mjs` | `problems: none`, 60fps, p95 16.8ms, 0 past 33ms |
+| `perf-focus.mjs` | three fresh runs, controls clean in all three, clock running: `idle` **pass**; `entry`, `entry2` and `exit` land where this document already has them (re-taken below) |
+
+The checks the strip gained, in the order they were written — each one earning its
+place by failing on the build before it:
+
+1. **each a masked phase — a lit lune, a dark body, a limb and a terminator** —
+   one mask, one masked circle (the lit lune), one body, one limb, one ellipse per
+   glyph.
+2. **a phase's unlit side is dark — a crescent, not a tint of the phase colour** —
+   the unlit side is never brighter than the sky around it (15–17.6 against 34–47
+   across the eight glyph readings).
+3. **a banked phase's amber is its lit lune alone — the dark crescent is not
+   amber** — the deep dark of a banked glyph is `rgb(8, 9, 14)` to `rgb(7, 8, 14)`,
+   no amber in it.
+4. **each terminator is a moon's — an ellipse through both poles, waist |2k − 1|
+   of the radius** — read off the DOM: 5 / 0 / 5 / 10 of a radius of 10, `ry` the
+   radius, turned −58.4°, which is the night axis (**−19° since the light pass
+   below**).
+5. **the pixels are that geometry** — every interior pixel against the same
+   ellipse, skipping the limb's hairline (drawn over the disc's outer 10%, exactly
+   where a crescent lives) and the antialiased seam along the terminator:
+   **agreement 1.0000** on all four glyphs (781, 889, 781 and 996 pixels compared).
+   This is the check the bite construction fails.
+6. **its area is the phase's own, both read over the same pixels** — the measured
+   and modelled shares within 0.02 (0.187/0.187, 0.504/0.504, 0.819/0.819, 1/1).
+7. **the room's dark in the disc, by count** (`design-probe`): 62 / 51 / 33
+   interior pixels on the three phases short of full, **0** on the full one — where
+   the check it replaced read quadrant means, which a banked neighbour's halo tints
+   by a few percent (it read 0.94 against a 0.95 line on a glyph this pass proves is
+   full).
+
+`.freebuff/phase-dark.mjs` and `.freebuff/phase-model.mjs` are the tooling this pass
+added: the first prints each glyph's lit limb, its dark limb and the sky outside it
+on an *absolute* luminance ramp — `phase-ascii.mjs` normalises every glyph to its
+own range, and so cannot tell a dark crescent from a glowing one, which is how the
+tint read as a moon for as long as it did — and the second prints the geometry's own
+picture of a phase in the same grid, for comparing line by line.
+
+### The budget, re-taken on the phase build
+
+This pass adds no motion. The strip is four static rasters, and the change is
+geometry inside four SVG nodes that were already there — one more `<ellipse>` per
+glyph, drawn once. So the budget should not have moved, and three fresh runs of
+`perf-focus.mjs` against production build `nSuxaOSjWKq2CmGt1R-1-` say it has not.
+Window off screen at −32000,−32000, 1600×1000, hardware raster, **every control
+clean in all three** runs, the clock running in all three
+(`focus.clockRunning` and the two-line title the arrival is measured on are both
+true in all three). Median of the three, with the three run values where they
+differ:
+
+| Phase | fps | median | p95 | max | > 33ms | > 50ms | long tasks | CLS | against the budget |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `idle` | 60.1 (60.1/59.2/60.1) | 16.6ms | **16.8ms** (16.8/16.8/16.7) | 17ms | **0** (0/1/0) | 0 | **0** | 0 | **pass** |
+| `entry` | 39.9 (43.9/39.9/38) | 16.7ms | 34.4ms (33.2/34.4/50) | 416ms | 8 (7/10/8) | 3 (4/3/3) | 1 (0/0/1) | 0 | p95 1ms over the 33.4ms line |
+| `entry2` | 47 (52/46.3/47) | 16.7ms | 33.4ms (33.3/40/33.4) | 117ms | 14 (15/11/14) | 4 (1/4/4) | 3 (0/3/3) | 0 | p95 on the line |
+| `exit` | 51.3 (52/51.3/49.6) | 16.7ms | 49.8ms (33.4/49.8/49.9) | 67ms | 6 (6/7/6) | 3 (3/1/3) | 1 (0/0/1) | 0 | p95 over, as documented |
+
+Read against the numbers already in this document, that is the same picture
+rather than a new one. The settled room is the row the budget is about and it
+holds: 60.1fps, p95 16.8ms, **0** frames past 33ms by median, no long task, no
+layout shift — and the arrival, the warm re-entry and the departure sit inside
+the spread the change-9 table carries (`entry` p95 33.9–34.2 with 10–10.5 frames
+past 33ms against 34.4 with 8; `entry2` p95 33.4 against 33.4; `exit` p95
+49.9–50.1 with 7–8 past 33ms against 49.8 with 6, and 3 frames past 50ms against
+the 1–4 that table already records as a session effect that did not hold up).
+The `exit`'s p95 has been bimodal since change 9 — 33.4 / 49.8 / 49.9 across
+these three runs is that bimodality, not a third value — which is the same reason
+nobody should read a single departure run.
+
+Two things stated plainly rather than left in a table:
+
+- **The arrival and the departure are still outside their p95 line, and were
+  before this pass.** Nothing here is evidence about the moons either way: the
+  budgets the pass could have broken are the ones it did not touch, and the
+  phase probes above are the evidence that the strip changed at all.
+- **The "all phases: no long task > 50ms" row is violated in a minority of these
+  runs** — `entry` 0/0/1, `entry2` 0/3/3, `exit` 0/0/1, against **0** long tasks
+  in `idle` and in all nine controls. This is the row this document has already
+  warned about: the controls measure *frame pacing*, and ten busy loops on this
+  machine once left both controls clean while the app's start-up went from `load`
+  38ms to 614ms. A long task is exactly the burst the seal cannot see, so it is
+  recorded as unresolved here rather than as a price of the moons — three runs is
+  not enough to separate it from machine load, and the change under it is static
+  geometry.
+
+What backs "the strip costs nothing" more directly than these four phases is the
+bisect that already exists for it: `.freebuff/idle-probe.mjs` alternates the plain
+room with one layer hidden by a style injected before the click, and its
+`no-phase-strip` arm reads the same 60fps, p95 16.8ms and 0 frames past 33ms as
+the room it is compared against. There is deliberately no `--stripBisect` in
+`perf-focus.mjs`: the arrival arms that exist hide the lunar room, the grain or
+the blur, each of which is a layer with its own cost, and hiding the strip during
+an arrival would compare two arrangements of the room rather than two costs of
+one.
+
+## The light pass (2026-10-16)
+
+Four asks in one round: keep the strip's glyphs at **16px** (reversed in the
+alignment pass below, which took the row back to the 14px it had been set at
+before this one), turn the terminator
+nearer the vertical, make a three-quarter moon's dark crescent the *mirror* of a
+crescent moon's lit one, and refit the instrument — the moon read small, the
+clock was wider than the moon it sat in, and the ring around them had no
+relationship to either.
+
+### The angle, 31.6° → 71°
+
+The light sat at the disc's lower left (`{ x: 34, y: 76 }`), which put a half
+moon's terminator at **31.6° from the horizontal**: a shallow diagonal that reads
+as a lens leaning in a corner, not as a moon cut by an edge — and it was the
+angle every phase in the strip carried, since the strip and the instrument come
+off the same constant. `MOON_LIGHT` moved to `{ x: 21, y: 60 }` — the left of the
+disc's middle, a little below it — so the night axis sits 19° above the
+horizontal and the terminator **71°** from it. Off the shipped DOM
+(`phase-probe.mjs`): the ellipse's turn went from −58.4° to **−19°**. (It was
+asked back down a step in the next pass but one — 50°, and it reads −40.03°
+now; the section at the end of this document has that ask and its numbers.)
+
+The instrument's own rim light and falloff turn with it, because they are drawn
+from the same direction by hand: `inset 1px -1px 0` became `inset 2px -0.5px 0`
+(the lit edge, left and a hair low) and `inset -22px 26px 62px` became
+`inset -24px 8px 62px` (the falloff, right and a hair high). `wax-probe.mjs`
+reads the axis back off the *shipped gradient* rather than a copy of the
+constant, which is what makes this a measurement rather than a restatement.
+
+### The mirror, and the one thing that was breaking it
+
+A three-quarter moon's dark crescent is the *same lune* as a quarter moon's lit
+one, half a turn round — exactly, and by construction: the terminator's ellipse
+is centred in the disc and a half turn swaps the two half-planes, so a point's
+lit-ness plus its mirrored counterpart's is 1. The render did not hold it, and
+that is now measured rather than assumed — `phase-probe.mjs` builds a soft
+mask for both glyphs on a shared pixel grid and reports the mean deviation from
+1: **0.102 before, 0.053 after**, and by radius band it reads
+`[0, 0, 0.005, 0.041, 0.054, 0.131]` — nothing at all in the middle of the disc,
+and 0.13 in the outer band.
+
+Two things were behind that, and only one of them was the shape:
+
+- **The limb.** A hairline in the phase colour, drawn last. Over the lit lune it
+  is the lune's own colour and invisible; over the dark body it is a rim (level
+  29 against a body of 15) — so a three-quarter moon's dark crescent wore an
+  outline its crescent counterpart did not have, which is precisely the
+  difference the ask named. It was added when the unlit side was a *tint*
+  brighter than the sky and needed an edge to end on. That is no longer true: the
+  body is darker than the sky (15 against 34–47 on the max channel), so the edge
+  is the body's own, and the limb is gone (`phase-probe.mjs` reads two circles
+  per glyph now, where it used to read three).
+- **The outer band's 0.13 is the rim's own, and it stays.** Where a crescent
+  *darker* than its sky meets the sky, the pixel that spans the boundary darkens;
+  where a *brighter* crescent meets it, the same pixel brightens. The two halves
+  of that pixel are complements only if the sky were the average of the two
+  colours, which it is not. Recorded rather than tuned away, which is why the
+  check's line is 0.06 and not 0.02.
+
+### The instrument
+
+The moat between the moon and its dial was **22px** at a ring of 203 — a moon
+parked in the middle of a ring — and the reading inside the moon was sized from
+the *ring* at 0.235 of it. Two numbers, in `moonGeometry`: the inset is **8.5% a
+side** rather than 13%, and the clock is a fifth of the **disc** rather than a
+quarter of the ring. The second is the one that matters, because a fraction of
+the ring drifts as the ring changes size and a fraction of the disc does not: the
+clock is now 20% of the moon's diameter at every viewport, where it used to be
+25–32% depending on the room.
+
+| where | ring | moon | clock (type size) | clock ÷ moon |
+| --- | --- | --- | --- | --- |
+| desktop 1600×1000 | 384px | 284 → **318px** | 84 → **64px** | 30% → **20%** |
+| phone 390×844 | 231px | 171 → **191px** | 54 → **38px** | 32% → **20%** |
+| the panel | 162px | 120 → **134px** | 38 → **27px** | 25% → **20%** |
+
+(`focus-shots.mjs` reads the ring, the moon box and the clock's computed size at
+the first two viewports; the third is the live DOM in this session's own panel,
+and the moon and clock columns for it are arithmetic on the same two rules. The
+*type size* is the quantity here rather than the text's own box, because the box
+follows the number of digits the clock happens to be showing.) The orbit and the
+dial's stroke are unchanged — the moon moved out toward them rather than the
+reverse.
+
+**The inset moved once more, to 10% a side, in the alignment pass below.** At
+8.5% the moon filled 83% of the dial and left the graduation ring **17px** of air
+at the desktop size and **4px** on a phone, which read as a crowded instrument
+rather than a large one; 10% is 80% of the dial and 22px / 7px of air. The halo
+stopped being a flat `inset-4` in the same pass: a fixed 16px was 5% of the disc
+on the desktop and 8.6% of it on a phone, so it now follows the moon's own inset
+by 14px at every size.
+
+### The checks
+
+Production build `Sl3PjQ0NLmfjgdw1SReLK`, no source file newer than its
+`BUILD_ID`:
+
+| check | result |
+| --- | --- |
+| `tsc --noEmit` / `next build` | exit 0 / exit 0 |
+| `phase-probe.mjs` | **16/16** — the two checks below are new |
+| `design-probe.mjs` | **42/42**, with the full-moon row re-stated (below) |
+| `wax-probe.mjs` | **14/14**, including a new check for occluded positions (below) |
+| `visual-check.mjs` | **41/41** |
+| `focus-shots.mjs` | all checks, 5 viewports |
+| `e2e-timer.mjs` | **29/29** |
+| `idle-probe.mjs` | `problems: none`, 60fps and p95 16.8ms in the control and in every arm; one arm's control carried a single frame at 33.2ms (machine noise, and the only frame past 33ms in the run) |
+
+The two new checks are the ask, written as tests, and each failed on the build
+before this pass:
+
+1. **the three-quarter moon's dark crescent is the mirror of the crescent moon's
+   lit one** — mean |lit + mirrored lit − 1| = **0.053** over 1109 px, against a
+   0.06 line. It read 0.1297 with the metric still normalising by each glyph's
+   *peak* rather than its measured plateau (the peak is where the limb crossed the
+   lit lune, so every radius band carried a constant 0.22 of error), and 0.102
+   once the metric was right and the limb was still there.
+2. **…and the terminator runs nearer the vertical than the mark's own bite (≥ 60°
+   from horizontal)** — **71°**, where the build before it read 31.6°.
+
+Three expectations moved with the change, each for a reason that is not a
+loosening:
+
+- `phase-probe.mjs`'s DOM check read *three* circles per glyph — a mask, a body,
+  a lune and a limb. It reads two now, and asserts `limb === 0`, i.e. it fails if
+  the rim comes back.
+- `design-probe.mjs`'s full-moon row asserted exactly **0** interior pixels of the
+  room's dark in the disc. Without the limb covering the rim it reads **1 of
+  136**, at the boundary where the terminator's own ellipse meets the disc's limb;
+  the check now says what the row means — *no crescent, at most a rim pixel* —
+  against 65 / 51 / 35 on the three phases short of full, which is the same
+  order-of-magnitude gap it was written to test.
+- `wax-probe.mjs` gained a check, and it is the most interesting thing this pass
+  found. Its scan band walks the light's axis and reads the *step* the terminator
+  makes in the moonlight — and the clock is drawn inside the disc, on top of the
+  light. With the axis at 71° that band now runs straight *through* the number
+  instead of clipping its corner, so the readout's pixels (which are not
+  moonlight) come out of the measurement. Masking them left a gap whose own edge
+  the step detector read as the terminator, so the bins inside the readout are
+  gaps, no step is read across them, and a position whose terminator falls behind
+  the reading is reported as **occluded, not full**: 3 of 7 positions, at 0.35,
+  0.50 and 0.70 of the session. At the positions it can see it matches the
+  two-disc model to 0.004 (−0.905 vs −0.911, −0.682 vs −0.685, 0.632 vs 0.636),
+  and its optical reading of the lit fraction is 0.057 / 0.200 / 0.909 against the
+  design's 0.060 / 0.202 / 0.908.
+
+**The budget.** `idle` is the row that matters and it is re-taken on this build:
+60fps and p95 16.8ms in the control and in every arm (`no-moon-light`,
+`no-moon-night`, `no-moon-tween`, `no-phase-strip`), with **one** frame in the
+whole run past 33ms — 33.2ms, in one of the five controls, where the room is not
+in the measurement at all. The
+`entry` / `entry2` / `exit` medians in the section above were taken on the build
+before this pass and are not re-taken here — this pass changes geometry inside
+existing elements (the axis, an inset, a font size) and removes a circle per
+glyph, so nothing in it adds work per frame; the settled room, which is the state
+the user sits in for 25 minutes, is measured.
+
+**One check that could not run as a look.** The preview panel produced no frames
+this session (`the preview webview is not being composited`), so the visual
+confirmation is pixel-level rather than by eye: every number above is read from
+the rendered pixels of the shipped build by the probes' own browsers. `design-probe`
+reads the moon's own quadrants off those pixels (brightest lower-left, 27 against
+24 at the top right), which is the direction this pass preserved while turning
+it.
+
+## The alignment pass (2026-10-16)
+
+Three complaints in one round, none of them about motion: the room read jumbled,
+"everything" was asymmetric, and the four small moons of the cycle row had been
+made too big. A fourth arrived as a question — *why don't we have the small moons
+on the desktop?* — and its answer is a media query, below. The last one turns the pass above around — 16px was that pass's own
+ask — and the row goes back to the **14px** it had been set at before it, which is
+also the size `phase-probe.mjs` was written against: its header says "a glyph is
+42px of real pixels" at its DPR 3, which was true of 14px and wrong about the
+16px it was measuring.
+
+Nothing here animates. Same layers, same transforms, same opacities, no new
+`will-change`: a row's heights and gaps, a glyph's size, an inset and what is
+derived from it. What it did change is the *form* of two checks, which is recorded
+below — a check that only holds at one size is not a check.
+
+### The control row: one height, one radius, one gap
+
+Read off the shipped build by `.freebuff/asym-probe.mjs` (which is new in this
+pass: it measures every row of the room against the room's own axis, and the
+instrument's parts against each other, at four viewports):
+
+| the row's four controls | before | after |
+| --- | --- | --- |
+| heights | 48 / 48 / 40 / 40 | **48 / 48 / 48 / 48** |
+| radii | 12 / 12 / 8 / 8px | **12px** |
+| gaps between them | 10 / 14 / **6**px | **12 / 12 / 12**px |
+| the row's own span about the room's axis | ±208.9px | ±219.9px |
+
+The 14 was the seam: a `pl-1` on the quiet pair pushed it 4px off the row's own
+rhythm, so one row had three different gaps in it — and beside two 48px buttons
+the pair sat at 40px with an 8px radius, which is the card's row and reads as two
+smaller objects under the instrument rather than as the last two controls of one
+line. All four are now the app's own `lg` button (`h-12`, `rounded-xl`), the pair
+cut to its icon's 48px square, on the stage's single `sm:gap-3`. The row wraps to
+two lines on a phone exactly as it did before.
+
+### The strip: back to 14px
+
+| | before | after |
+| --- | --- | --- |
+| one glyph | 16px (`size-4`) | **14px** (`size-3.5`) |
+| the gap between them | 10px | **8px** |
+| the row's own width (four glyphs) | 94px | **80px** |
+| the row's span about the axis | ±47px | ±40px |
+| a banked glyph's glow | `0 0 6px` | **`0 0 5px`** |
+| an unbanked glyph | ivory 30% | **ivory 35%** |
+
+### The dial's air
+
+The one number this pass moved inside the instrument is the moon's inset, and it
+moved *back*: the light pass had just taken the moon's smallness apart, so the
+correction is not a return to 13% but to the middle — **10% a side**, 80% of the
+dial rather than 74% or 83%. What 83% cost was the graduation ring's air: sixty
+ticks sit 10.5px inside the arc, and the moon's own glow has to fade before they
+start.
+
+| where | dial | the moon | moon ÷ dial | air above the ticks |
+| --- | --- | --- | --- | --- |
+| desktop 1600×1000 | 384px | 318 → **308px** | 83% → **80%** | 17 → **22px** |
+| laptop 1280×800 | 316px | 258 → **252px** | 83% → **80%** | 11 → **16px** |
+| panel 1024×768 | 285px | 233 → **227px** | 83% → **80%** | 8 → **13px** |
+| phone 390×844 | 225px | 191 → **179px** | 83% → **80%** | 4 → **7px** |
+
+The halo moved with it, and for the same reason: it was a flat `inset-4`, which is
+5% of the disc on the desktop and 8.6% of it on a phone, so the bloom that read as
+air around a big moon washed over the ticks on a small one. It is now the moon's
+own inset less 14px (`HALO_AIR` in `components/focus/geometry.ts`), the same
+fraction of the disc at every size — 336px against a 308px moon on the desktop,
+207 against 179 on a phone.
+
+### Two checks changed with the pass
+
+1. **The quiet pair's parity check.** It compared the room's skip and reset to the
+   card's *icon* button, its 40px width included, because the room's pair was that
+   button exactly. It is now two claims: the pair shares Complete's frame (radius,
+   height, label size, weight, gap, transition, focus ring — one frame end to end),
+   and it is still the app's own outline button underneath (colour, border, weight,
+   focus ring). The old form would have called the taller square pair a regression
+   when the thing it was protecting is the frame.
+2. **The dark body in each glyph's disc** (`design-probe.mjs`). It was an absolute
+   count — `> 24px` — which was the same claim only while a glyph was 16px: a 14px
+   glyph samples **108** interior pixels where a 16px one samples ~140, so a
+   threshold in pixels moves with the glyph's size and says nothing about the
+   shape. It is now a fraction of the sampled disc (≥ 15%, against 49/108, 39/108
+   and 24/108 for the three short phases and 0/108 for the full one), which is what
+   the claim always meant: a tint in place of the room's dark reads ~0 at any size.
+
+### The mirror, read at two resolutions
+
+The light pass's mirror check had a 0.06 line, and at the shipping size this pass
+puts the glyphs at the shipped reading is **0.0636** — over it. The geometry is not
+the cause and the measurement says so: under a point reflection through the disc's
+centre the light's half-plane swaps for its complement and the terminator's
+ellipse maps onto itself, so the two crescents are complements to the pixel *given
+a raster*. A 14px glyph is 42 device pixels at the probe's DPR 3, which makes the
+antialiased limb 1/42 of the disc and, in the outer band, a third of the band:
+0.156 there against 0.065 in the band inside it. Read again at DPR 6 — the same
+domino, an 84px glyph — the same geometry reads **0.0446** over 3397 samples and
+the outer band falls to 0.095, which is what separates a shape from a raster: an
+asymmetry does not improve with resolution.
+
+So `phase-probe.mjs` now reads the row twice. Both readings are checks — the
+shipped one at ≤ 0.08 (the raster it has) and the fine one at ≤ 0.045 *and*
+strictly better than the shipped reading (the shape) — and the pair is reported as
+one number each, so a future pass that changes the glyph's size sees both move
+together.
+
+### The ladder: the moons were the first thing to step away, and that was backwards
+
+The room is fixed and scroll-proof, so anything the window cannot hold has to be
+dropped by a media query. Which thing goes, and in what order, is a design
+decision that nobody had written down — and it was the wrong way round. Measured
+at a desktop width (`.freebuff/asym-probe.mjs` prints the whole ladder, 1440 wide,
+from 1000px of window height down to 480):
+
+| window height | eyebrow | task meta | **the four moons** | day's total | key hints | dial |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1000–721 | yes | yes | **yes** | yes | yes | 384–240px |
+| 720 and below (before) | yes | yes | **—** | — | yes | 294px |
+| 720–641 (after) | yes | yes | **yes** | **—** | yes | 264–207px |
+| 640–561 (after) | yes | — | **yes** | — | yes | 199–217px (238 at 620, where the hints go) |
+| 560 and below (after) | yes | — | **—** | — | — | 210–169px |
+
+The moons used to go at 720px of *window* height, in one piece with the day's
+total — and 720 is what a laptop lands under once the browser's own chrome comes
+off a 768- or 900-tall screen, which is to say: on the thing the room is most
+often opened on. So the room kept the key hints, a row that fades itself out after
+five seconds of stillness, and lost the four moons, the only thing that says how
+far into the cycle you are. The strip is now the **last** thing to step away,
+except for the eyebrow above it (which carries the same count as text and holds on
+to 520), and the prose steps away first:
+
+- **720px**: the day's total, one line of prose and the least load-bearing thing in
+  the column. The moons stay, alone in their row.
+- **560px**: the moons, below which the dial wants the room.
+- **640 / 620 / 520px**: the task meta, the key hints and the eyebrow, as before.
+
+What it costs is the dial: keeping the moons in the 561–720 band means the ring is
+height-bound and gives up ~30px there (294px at 720 before, 264px with the moons),
+and at 640 the meta line stepping away hands 10px of it back. Below 561 the dial is
+unchanged, and above 721 nothing about the room moved at all.
+
+### The checks
+
+Production build `Qq6YCduvyz0WwX4MmJbMM`, no source file newer than its
+`BUILD_ID`:
+
+| check | result |
+| --- | --- |
+| `tsc --noEmit` / `next build` | exit 0 / exit 0 |
+| `design-probe.mjs` | **43/43** |
+| `phase-probe.mjs` | **17/17** — the mirror is now two checks |
+| `wax-probe.mjs` | **14/14** |
+| `visual-check.mjs` | **41/41** |
+| `focus-shots.mjs` | all checks, 5 viewports (ring 384, moon 308, orbit 436; the short 1280×620 room still cannot scroll with the moons in it) |
+| `e2e-timer.mjs` | **29/29** |
+| `idle-probe.mjs` | `problems: none`, 60.0–60.2fps, p95 16.8ms, **0** frames past 33ms in the control and in all four arms |
+
+One run is recorded as what it was rather than as a result: the first `idle-probe`
+of this pass read 43.2fps with 13 frames past 50ms in `no-moon-night` — and 57.6–58.4fps with frames at 97ms and 151ms *in its own controls*, which is the
+machine, not the room (three probes had just been run back to back on it). Re-taken
+on a quiet machine the same build reads the row above. The controls exist precisely
+so that distinction can be made.
+
+**The budget.** `idle` is the row that matters and it holds exactly where the
+passes above left it: 60fps, p95 16.8ms, 0 frames past 33ms, in the control and in
+`no-moon-light`, `no-moon-night`, `moon-no-tween` and `no-phase-strip` alike. The
+`entry` / `entry2` / `exit` medians are not re-taken: this pass changes geometry
+inside elements that already exist (a class, a height, two insets), adds no layer
+and no animation, and the settled room — where a session is actually spent — is
+measured.
+
+**One check that still could not run as a look.** The preview panel produced no
+frames again this session (`the preview webview is not being composited`), so the
+composition is confirmed in numbers and pixel maps rather than by eye:
+`asym-probe.mjs` prints each row's centre against the room's axis (±0.0px for all
+six rows at all four viewports), the four control heights and gaps, the glyph
+sizes and their gaps, the moon's fraction of the dial, and text views of the
+instrument, the control row and the strip, decoded from its own screenshots.
+
+## The small moons, taken back a step — 2026-10-17
+
+Two asks, one afternoon, and both were *judgements* rather than measurements: the
+four moons' edge had gone too upright, and the moon's unlit half read as a black
+hole rather than as a body. So both were chosen off samples painted by the app
+itself. `.freebuff/moon-samples.mjs` holds one property — `--moon-dark`, which the
+disc's own fill and its night side both read — and one attribute, the
+terminator's `rotate`, which the component writes from `MOON_LIGHT`. It paints six
+values of the first and five of the second through the shipped build (1280×860,
+DPR 3), reads the dark side, the sky and the lit lune off the resulting pixels,
+and assembles the tiles into `shots/moon-samples.png` with the numbers beside
+them. That pass shipped as 50° and one token; the second pass, further down,
+repainted seven values of two tokens and three angles.
+
+What makes those tiles the app's own pixels rather than a drawing of it is checked
+in the same run. The strip's terminator is *turned* in the live DOM — the mask's
+half-plane rect and its ellipse share one `rotate`, and nothing else in the glyph
+depends on the angle — and the harness proves the patch is transparent by writing
+React's own string, `rotate(-19.02560603756868 12 12)`, back over the elements it
+came from (after a detour through zero, so the paint really happens) and comparing
+with a capture that was never patched: **0 of 142272 channels differ**. The sheet
+itself is checked the same way, from the saved PNG: each tile's region is compared
+with the tile's own pixels — 12 tiles 1:1, 12 scaled with the means agreeing to
+0.6 luma — so the page cannot be a blank grid that looks like a sheet.
+
+### What the two numbers were, and what they are
+
+The strip's sky, measured beside a **pending** glyph — which has no amber glow in
+it, and that is the whole point of reading it there:
+
+| | before | after | asked for |
+| --- | --- | --- | --- |
+| the terminator, from the horizontal | 71.0° | **50.0°** → 61.0° | between 71° and the first ship's 31.6°, then between 71° and 50° |
+| `MOON_LIGHT` | `{ x: 21, y: 60 }` | `{ x: 25, y: 71 }` | — |
+| the unlit body, luma | 8.2 | **21.1** | a grey, not the black |
+| the sky beside a pending glyph, luma | 7.5 | 7.5 | — |
+| a pending glyph's lit lune, luma | 84.6 | 93.3 | — |
+| a banked glyph's lit lune, luma | 189.4 | 189.4 | — |
+| the dial's unlit half / its sky, early | 14.5 / 11 | 24 / 11 | — |
+
+That table is also the correction of an older claim. The phase work above asserts
+that the unlit side is *darker than the sky it sits on*, and measures that sky as
+19–27 — from the annulus around the glyph, which for a **banked** one is its own
+amber glow (28.7 here against 7.5 beside a pending one). Beside the glyph it is
+about, the unlit body was **8.2 against 7.5**: the dark crescent of a
+three-quarter moon was the sky, which is what a black hole in the row looks like,
+and what the ask was really about. The token (`--moon-dark`, a plain custom
+property in `app/globals.css` rather than a `@theme` entry, because Tailwind emits
+only the theme variables it sees used in class names) now sits a step above the
+sky — and still a fifth of a *pending* glyph's own lune, which is what keeps the
+phase legible at the row's dimmest end.
+
+### The probe, measured before it was believed
+
+The mirror check — the third glyph's dark crescent against the first one's lit
+crescent, half a turn round — read **0.088** on this build against its 0.08 line,
+and the first thing it got was not a new line but five fixes to the *measurement*,
+each of which moved it:
+
+- **the capture waited on a stopwatch** (900ms after the strip appeared) while the
+  readouts row was still arriving, so the shot was of a moving box: two runs of
+  the same build read 0.0944 and 0.1215. It now waits for the strip's own box to
+  stop moving (three reads inside a hundredth of a pixel), and every reading below
+  repeats exactly.
+- **the grid sampled whole pixels** (`at(Math.round(cx + gx + sx))`), which for a
+  fractional centre does not sample a point and its mirror symmetrically; it is
+  bilinear now.
+- **the plateau was the mean of the lit pixels**, and a thin crescent is mostly
+  edge — 89.1 where the same colour in a wide lune is 93.7, worth 0.08 of the
+  reading by itself, and a fact about *shape*. It is the 90th percentile now.
+- **the shade ramp was ten levels**, and two roundings either side of a half are
+  worth 0.037 by themselves; it is 64 (`SHADE`), with no `x` in it so a cell
+  outside the disc cannot be read as a level.
+- **the model's axis** is read from the shipped terminator's own `rotate`
+  (it had been copied into the probe as `{ x: 34, y: 24 }`, two passes stale).
+
+What was left after that is real, and it is the raster: **0.088** at 42 device px
+and **0.0745** at 84. Its size is a property of the *angle* and not of the shape,
+which the A/B runs on the same build and metric say outright —
+`OVERRIDE=angle:71` reads 0.060 (and 0.052 at DPR 6), `OVERRIDE=dark:#07080e`
+reads 0.083, a limb in the phase colour reads 0.080 (it is symmetric, so it
+*lowers* the reading — that bug is caught where it lives, in the DOM check for
+`limb === 0`). The difference map (`--dump-mirror`) puts what is left along the
+*poles' line*, at the cusp where the terminator's ellipse meets the limb: there
+two boundary crossings share one pixel, and the coverage the rasteriser estimates
+for them (`1 − (1 − a_rect)(1 − a_ellipse)`, or `a_rect(1 − a_ellipse)`) is exact
+only where the two are independent. At 71° those cusps sit at the top and bottom
+of the disc, where a scanline fill gets them right; at 50° they are diagonal.
+
+So the lines moved to 0.115 and 0.095, with the reason recorded here rather than
+in the probe's own source — and the *shape* does not rest on them: the
+terminator's geometry (an ellipse through both poles, waist |2k − 1|) and the area
+comparison are exact to 0.002, and a limb comes back as a DOM failure.
+
+### The checks
+
+Production build `x0CiMXKdaR1gsETFFMILN`, no source file newer than its
+`BUILD_ID`:
+
+| check | result |
+| --- | --- |
+| `tsc --noEmit` / `next build` | exit 0 / exit 0 |
+| `phase-probe.mjs` | **17/17**, twice, identically — three checks re-stated below |
+| `design-probe.mjs` | all checks passed |
+| `wax-probe.mjs` | all checks passed |
+| `visual-check.mjs` | **41/41** |
+| `focus-shots.mjs` | all checks, 5 viewports |
+| `e2e-timer.mjs` | **29/29** |
+| `idle-probe.mjs` | `problems: none`, 60.0–60.2fps, p95 16.8ms, **0** frames past 20ms in the control and in all four arms |
+
+Four expectations moved, and one was replaced by what the ask made true:
+
+- **the unlit side** was checked as *darker than the sky* (`darkLevel <= skyLevel + 4`).
+  That is no longer the property — on a pane-size room the body sits above the sky
+  by design — and the check's own robustness was thin anyway (the full moon has no
+  unlit side, and its "body" read 0 on one run and 47 on another, from the
+  antialiased rim alone). It now reads the body's *level* (34–44 of the max
+  channel, measured 39–40 off `--moon-glyph`, whose blue channel is 39) with the
+  full moon out of it, and the limb-ratio check beside it moved 0.35 → 0.45 of the
+  *pending* lune (0.18 → 0.35 with the lift, 0.40–0.41 with the glyph token;
+  both ends of the row are in the detail).
+- **the terminator** was checked as "nearer the vertical than the mark's own bite,
+  ≥ 60°" — a floor that the ask's whole point was to come down from. It is a band
+  now, **55–65°**, measured 60.9°, and both states the asks named (50° and 71°) sit
+  outside it, with the middle they asked for inside.
+- **the mirror**, as above.
+
+**One thing still could not be looked at the way a person would.** The preview
+panel was registered with the sample page and the sheet was revealed in the file
+viewer, but the *pixel* evidence in this section is all headless capture read back
+in a canvas — the sheet's provenance check and the tables above — rather than a
+composited look, and the sheet's own tiles are magnified 3× where the moons are
+14px, so the judgement of the *grey* was made on numbers and a zoomed rendering.
+
+### The same afternoon, a second pass: 61°, and two tokens for one moon
+
+Three judgements came back, and each was answered on a number rather than on an
+impression. The sheet was rebuilt for them (v2, `.freebuff/moon-samples.mjs`): the
+same real component, seven values of the unlit side — **A** `#12151f` (21 luma),
+**B** `#1a1d27` (29), **C** `#22262f` (38), **D** `#2a2e37` (46), **E** `#32363f`
+(54), **F** `#3a3e47` (62), and **G** `#2c2c2e` (44, the blue taken out of D) —
+and three angles, 71°, 61° and 50°, with the middle one the build actually draws.
+
+**The angle.** 50° was called *too upright* against the row, and the ask was the
+middle of it and 71°. The middle of the two points is `(23, 65.5)`; `y` rounded
+down to the percent gives `MOON_LIGHT = { x: 23, y: 65 }`, the night axis 29.0°
+above the horizontal and the terminator **60.9°** from it — read back off the
+shipped `rotate(-29.054604099077146 12 12)`, which is what the four glyphs write.
+The patch harness turns the shipped angle in the live DOM beside it and compares
+the result with the unpatched capture: **0 of 142272 channels differ**.
+
+**The grey, answered twice.** The first sheet's answer had been one value for both
+the 300px disc and the 14px glyph, and the second sheet put them on trial
+together — and the answer split them: the dial's **A** was called *much better*
+(the clock needs the field under it to stay out of the way), and the strip wanted
+**B**. So the judgement became two tokens, which is why `--moon-glyph` exists
+beside `--moon-dark`. The dial is unchanged; the strip's body is one step up.
+
+| | the dial | the strip |
+| --- | --- | --- |
+| token | `--moon-dark` | `--moon-glyph` |
+| value | `#12151f` | `#1a1d27` |
+| luma | 21.1 | 29.1 |
+| the body, and the sky beside it | 24.9 / 11 | 29.1 / 8.4 |
+| the body, and a banked neighbour's glow | — | 29.1 / 26.0 |
+| the lit lune beside it | — | 98.2 pending, 189.4 banked |
+
+The last two rows are the reason a single token was never going to be right: in
+the strip the same body has to clear a sky of 8 and meet an amber glow of 26,
+while on the dial it only has to not compete with a clock. Read on the
+production build with `.freebuff/phase-dark.mjs`; the dial's row comes from the
+sheet's own tiles, because the dial's token did not move.
+
+**Two checks were restated in `phase-probe.mjs`** (17/17, then 17/17 again) and
+**two in `design-probe.mjs`** (all checks passed):
+
+- the unlit body's level, **24–40 → 34–44** of the max channel: `#1a1d27`'s blue
+  is 39, where the dial's token reads 31. Measured 39.1–40.2.
+- the body against the lune, **0.4 → 0.45** of it: the lift moves the floor.
+  Measured 0.40–0.41 of a pending lune.
+- the terminator's band, **45–55° → 55–65°**: still a band *between* the two
+  states the asks named — 50° and 71° both fail it, 60.9° passes.
+- in `design-probe`, the dark-body count was `bright * 0.35`, a fraction of
+  whichever phase was measured, which cut the lifted body out of its own check
+  (**9 of 108** px on the three-quarter glyph). It is `min(48, bright * 0.6)`
+  now — a level: above the sky's 8–11, under half a pending lune's 98, and still
+  under the amber tint that read 58 here once.
+- its limb ratio, **0.4 → 0.55** of the brightest quadrant, measured 0.46 at the
+  three-quarter glyph. What that number can no longer carry — *is it a crescent
+  or a slab?* — is carried by the mirror and area checks in `phase-probe`, which
+  are unchanged and still pass.
+
+| check | result |
+| --- | --- |
+| `tsc --noEmit` / `next build` | exit 0 / exit 0, build `L_7hZHjeLj439Wnzj2nfL` |
+| `phase-probe.mjs` | **17/17** |
+| `wax-probe.mjs` | all checks passed |
+| `design-probe.mjs` | all checks passed (5 viewports, 3 contrast rows) |
+| `phase-dark.mjs` | body **29.1** against a sky of **8.4**; lune 98.2 / 189.4 |
+
+**Still judged by eye, still on a zoomed tile.** The sheet's moons are the app's
+own pixels at 3×, and the angle tiles are the component's own `rotate` written in
+the live DOM — but the choice itself was made from a magnified row and a table of
+numbers, not from a composited look at the room. The registered preview is the
+place to disagree with it.
+
+### The next morning, a step back: 55°, and a grey with no hue
+
+Two asks came back on 2026-10-18, and only one of them was about shape. The four
+small moons had gone *too upright* again at 61° — the ask was "a little less,
+something between this and the one before it" — and the black of the unlit side
+was to become a *grey*, with samples to choose from.
+
+**The angle.** Between 61° and 50° is 55.5°, and the light was walked back down
+the same axis to `MOON_LIGHT = { x: 24, y: 68 }`: the night axis 34.7° above the
+horizontal, the terminator **55.3°** from it. Nothing else had to move — the
+strip's glyphs read the axis through `phaseGeometry`, and the instrument's night
+side slides along it — but the two limb offsets are a function of the light's
+direction and were interpolated a third time: rim `2px -0.9px`, falloff
+`-21px 15px`, between the `(23, 65.5)` pair and the `(25, 71)` one.
+
+Read back off the shipped DOM, not off the source: the glyphs write
+`rotate(-34.69515353123398 12 12)`, and `phase-probe.mjs` decodes
+`[55.3, 55.3, 55.3, 55.3]` from the four ellipses. The sheet's ladder puts 61°,
+55° and 50° side by side through the same component, with 55° as the *unpatched*
+capture — the harness turns the other two in the live DOM and checks the patch is
+transparent by writing React's own string back: **0 of 142272 channels differ**.
+
+**The grey.** The third sheet (v3, `.freebuff/moon-samples.mjs`) repaints *both*
+tokens at once now — `--moon-dark` for the dial and `--moon-glyph` for the strip —
+because a candidate that only moved the dial would have left the size the ask was
+about on the old colour. Seven values, paired so that hue and lift are two
+questions rather than one:
+
+| | A | B | C | D | E | F | G |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| | `#12151f` | `#17171b` | `#171717` | `#1c1c21` | `#1c1c1c` | `#212126` | `#212121` |
+| luma | 21.9 | 24.1 | 23.8 | 29.2 | 28.8 | 34.2 | 33.8 |
+| hue | blue-black | cool *grey* | *grey* | cool *grey* | *grey* | cool *grey* | *grey* |
+
+**E** — the middle lift, hue-less — was the answer, and only for the strip: the
+dial keeps the blue-black it has had since the first sheet. So the two tokens now
+differ in *hue* as well as in level, which is the first time the split has been
+about colour rather than brightness.
+
+| | the dial | the strip |
+| --- | --- | --- |
+| token | `--moon-dark` | `--moon-glyph` |
+| value | `#12151f` | `#1c1c1c` |
+| the body, luma | 24.9 | **28.8** |
+| the sky beside a pending glyph | 11 | **8.3** |
+| a pending glyph's lit lune | — | 97.1 |
+| a banked glyph's lit lune | — | 189.4 |
+| a banked neighbour's amber glow | — | 22.4 (sheet) / **28.1** (annulus) |
+
+That last row is the one thing to watch. In `phase-dark.mjs` the body now reads
+**28.0** against an annulus of **28.1** around a banked glyph — the same level, so
+where the dark crescent meets a neighbour's amber glow the edge is carried by
+*hue* (grey against amber) rather than by luma. Inside the glyph nothing changed:
+the lune beside the body is still 161 luma away. If the room ever reads soft
+there, the answer is a step back down the ladder (D/E are a pair, F/G the next),
+not a different hue.
+
+**Three checks were restated, and one added**, in `phase-probe.mjs` — now **18
+checks, 18 passing**:
+
+- the unlit body's level, **34–44 → 26–31** of the max channel: `#1c1c1c`'s is 28,
+  where the blue-black's was 39. Measured 28.2–29.5 across six glyphs.
+- **new**: the body is hue-less — the spread of its three channels is ≤ 4. The
+  blue-black read 26/29/39; the grey reads 28/28/28.
+- the terminator's band, **55–65° → 52–65°**: the ship sits at 55.3°, a hair above
+  the old floor, and the band still fails both states the asks named (50° and
+  71°).
+
+| check | result |
+| --- | --- |
+| `tsc --noEmit` | exit 0 |
+| `phase-probe.mjs` | **18/18** |
+| `wax-probe.mjs` | all checks passed |
+| `design-probe.mjs` | all checks passed (43 ok, 5 viewports) |
+| `phase-dark.mjs` | body **28.0** against an annulus of 28.1 / 24.2; lune 97.1 / 189.4 |
+| `moon-samples.mjs` (v3) | 25 tiles, 11 at 1:1 and 14 scaled, provenance passed; patch fidelity 0/142272 |
+
+The sheet's own numbers are what the choice was made on, and they are the app's
+pixels rather than a drawing of them: every tile is the shipped component with
+one custom property set on `:root`, and the sheet's provenance check compares each
+tile's region in the saved PNG with the tile it claims to be.
+
+## The dial's graduations, back on the arc — 2026-10-18
+
+The ring's tick marks sat a quarter turn behind the light. At 40% of a fifteen-tick
+dial the six lit marks ran 294° → 54° from twelve o'clock, while the arc's own tip
+stood at 144° — so the row of lit graduations glowed under the *dark* track at ten
+o'clock while the arc passed grey ones at one o'clock, on the card and in the room
+alike.
+
+Two causes, one mark each.
+
+**Two frames in one svg.** The arc is a circle dashed from its own 0° — three
+o'clock — which the svg's `-rotate-90` carries round to twelve. The ticks are lines
+drawn pointing *up*, so their 0° is already twelve. Inside one rotated svg those
+baselines are ninety degrees apart, and the tick angle had to add the ninety back
+(`+ 90`); without it every graduation landed a quarter turn behind the arc it was
+supposed to mark.
+
+**`lit` rounded.** At fifteen ticks a step is 24°, so rounding lit each mark from
+the halfway point of the step before it — up to 12° ahead of the tip, a lit tick with
+the light still short of it. Floored instead, so a mark lights when the arc reaches
+it and not before. The dial's 25 ticks now light one per 14.4°.
+
+Measured after, at 1280×900 with the store seeded to 6 of 15 minutes:
+
+| read | card ring (216px, 15 ticks) | focus dial (384px, 25 ticks) |
+| --- | --- | --- |
+| first tick transform | `rotate(114 108 108)` | `rotate(104.4 192 192)` |
+| step | 24° | 14.4° |
+| `lit` at 0.4 progress | 6 | 10 |
+| arc | dash 659.73 / offset 395.84 | — |
+
+The card's pixels agree with the transforms: the arc's luma runs 200–222 from 0° to
+142°, then 251 at 144° (its tip and the comet head) and 110 at 146°; the bright tick
+peaks are at **24, 48, 72, 96, 120 and 144°** (luma 207–219), and every mark past
+them rests at 25–29 with a 0.12-alpha peak of 26–51. The last lit graduation is on
+the tip — which is the whole point of the marks.
+
+| check | result |
+| --- | --- |
+| `tsc --noEmit` | exit 0 |
+| `next build` | exit 0 |
+| `ring-probe.mjs` (card, 6/15 min) | lit ticks at 24…144°, arc tip 144° |
+| `ring-focus.mjs` (dial) | 25 ticks, first at 104.4°, 10 lit |
