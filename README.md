@@ -182,6 +182,10 @@ Motion is centralised in `lib/motion.ts` (durations, springs, variants) and
 phase colour in `lib/tone.ts` — components read the tone by timer mode instead
 of hard-coding colours. Every animation respects `prefers-reduced-motion`.
 
+The type, field and control scales — and the `tailwind-merge` registration that
+keeps a size token and a colour from cancelling each other — are in
+[docs/design-system.md](docs/design-system.md).
+
 The Focus Mode entry/exit has a measured frame budget — what it is, how to
 re-measure it, and which optimisations it already paid for are in
 [docs/motion-budget.md](docs/motion-budget.md).
