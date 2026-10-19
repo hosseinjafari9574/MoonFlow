@@ -60,7 +60,7 @@ export function TaskComposer() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="panel group p-3.5 transition-shadow duration-300 focus-within:shadow-[0_0_0_1px_rgba(75,98,255,0.32),0_1px_1px_rgba(0,0,0,0.55),0_34px_64px_-48px_rgba(0,0,0,1)]"
+      className="panel group p-4 transition-shadow duration-300 focus-within:shadow-[0_0_0_1px_rgba(75,98,255,0.32),0_1px_1px_rgba(0,0,0,0.55),0_34px_64px_-48px_rgba(0,0,0,1)]"
       aria-label="New task"
     >
       {/* Accent hairline that wakes up when the field has focus. */}
@@ -132,7 +132,7 @@ export function TaskComposer() {
                       onClick={() => setPriority(value)}
                       aria-pressed={active}
                       className={cn(
-                        "flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-caption font-semibold transition-all duration-200",
+                        "flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-caption font-semibold transition-all duration-200",
                         active
                           ? "border-white/15 bg-white/[0.06] text-foreground"
                           : "border-transparent text-muted-foreground hover:bg-surface hover:text-foreground",

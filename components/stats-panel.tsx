@@ -63,7 +63,7 @@ export function StatsPanel() {
 
   return (
     <section className="panel overflow-hidden" aria-label="Today's stats">
-      <div className="flex items-center justify-between px-5 pt-4">
+      <div className="flex items-center justify-between px-4 pt-4">
         <h2 className="text-micro font-semibold uppercase text-muted-foreground">
           Today
         </h2>
@@ -74,7 +74,7 @@ export function StatsPanel() {
 
       <div className="mt-3 grid grid-cols-3 divide-x divide-white/[0.06] px-1 pb-4">
         {stats.map((stat) => (
-          <div key={stat.key} className="min-w-0 px-2 sm:px-4">
+          <div key={stat.key} className="min-w-0 px-3">
             <div className="flex items-center gap-1 sm:gap-1.5">
               <stat.icon
                 className={cn(
@@ -96,7 +96,7 @@ export function StatsPanel() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
                 className={cn(
-                  "font-mono text-[26px] font-medium leading-none tracking-[-0.02em]",
+                  "whitespace-nowrap font-mono text-[22px] font-medium leading-none tracking-[-0.02em] max-[22rem]:text-[19px] sm:text-[26px]",
                   stat.accent,
                 )}
               >
@@ -135,7 +135,7 @@ export function StatsPanel() {
         ))}
       </div>
 
-      <div className="px-5 pb-5">
+      <div className="px-4 pb-4">
         <div className="hairline" />
         <div className="mt-4 flex items-baseline justify-between">
           <h3 className="text-micro font-semibold uppercase text-muted-foreground">
@@ -170,12 +170,12 @@ export function StatsPanel() {
                     delay: 0.04,
                   }}
                   className={cn(
-                    "w-full max-w-[16px] rounded-t-[3px]",
+                    "w-full max-w-[20px] rounded-t-[4px]",
                     day.isToday
-                      ? "bg-gradient-to-t from-primary/45 to-primary-soft"
+                      ? "bg-gradient-to-t from-primary/45 to-primary-soft shadow-[0_0_18px_-4px_rgba(75,98,255,0.55)]"
                       : day.minutes > 0
                         ? "bg-gradient-to-t from-primary/15 to-primary/45"
-                        : "bg-white/[0.06]",
+                        : "bg-white/[0.07]",
                   )}
                 />
                 <span

@@ -198,6 +198,42 @@
     box-shadow: inset 0 0 0 1px rgba(244, 241, 234, 0.055);
   }
 
+  /*
+   * Every bordered field in the app — the shared Input, the routine editor's
+   * rows, both dialogs and the timer's task select. One border, one fill, one
+   * hover and one focus treatment, so a field never looks like it belongs to a
+   * different app depending on which panel it sits in.
+   *
+   * Components layer, not utilities: the border and focus ring are properties
+   * no page should have to restate. Height, padding and type stay on the
+   * element (a dialog field and a select are the same *field*, not necessarily
+   * the same size).
+   */
+  .field {
+    border: 1px solid rgba(244, 241, 234, 0.12);
+    border-radius: 0.75rem;
+    background: rgba(244, 241, 234, 0.03);
+    transition:
+      border-color 180ms ease,
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .field:hover {
+    border-color: rgba(244, 241, 234, 0.2);
+  }
+
+  .field:focus-visible {
+    outline: none;
+    border-color: rgba(75, 98, 255, 0.55);
+    background: rgba(75, 98, 255, 0.045);
+    box-shadow: 0 0 0 3px rgba(75, 98, 255, 0.16);
+  }
+
+  .field:disabled {
+    opacity: 0.5;
+  }
+
   .kbd {
     display: inline-flex;
     align-items: center;

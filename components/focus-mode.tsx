@@ -381,7 +381,7 @@ export function FocusMode() {
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.34, delay: 0.3, ease: EASE_OUT_EXPO }}
                     className={cn(
-                      "text-micro font-semibold uppercase tracking-[0.22em] [@media(max-height:520px)]:hidden",
+                      "text-micro font-semibold uppercase tracking-[0.14em] [@media(max-height:520px)]:hidden sm:tracking-[0.22em]",
                       isFocus
                         ? "text-primary-soft glow-accent"
                         : "text-ivory glow-ivory",

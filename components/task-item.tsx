@@ -98,7 +98,7 @@ export function TaskItem({ task }: { task: Task }) {
         animate={pulse ? { scale: [1, 1.012, 1] } : { scale: 1 }}
         transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
         className={cn(
-          "relative flex items-start gap-3 overflow-hidden rounded-xl py-3 pl-3.5 pr-3 transition-colors duration-300",
+          "relative flex flex-wrap items-start gap-x-3 gap-y-1 overflow-hidden rounded-xl py-3 pl-3 pr-3 transition-colors duration-300",
           selected ? "bg-white/[0.045]" : "hover:bg-white/[0.022]",
         )}
       >
@@ -184,6 +184,9 @@ export function TaskItem({ task }: { task: Task }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {/* A phone gives the title the rest of the line and keeps the
+                priority word beside it: the title truncates by ~40px instead
+                of dropping the label onto a line of its own. */}
             <button
               type="button"
               onClick={(event) => {
@@ -191,7 +194,7 @@ export function TaskItem({ task }: { task: Task }) {
                 select(task.id);
               }}
               className={cn(
-                "relative max-w-full truncate text-left text-[14px] font-medium leading-snug transition-colors duration-300",
+                "relative max-w-full truncate text-left text-[14px] font-medium leading-snug transition-colors duration-300 max-sm:min-w-0 max-sm:flex-1",
                 task.completed
                   ? "text-muted-foreground/80"
                   : "text-foreground hover:text-primary-soft",
@@ -208,6 +211,11 @@ export function TaskItem({ task }: { task: Task }) {
                 className="absolute left-0 top-1/2 h-px w-full origin-left bg-ivory/40"
               />
             </button>
+            {/*
+              * Dot and word at every width: the word keeps priority from being
+              * a colour-only cue, and on a phone the title shrinks around it so
+              * the label never becomes a line of its own.
+              */}
             <span
               className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
               title={`${priority.label} priority`}
@@ -267,18 +275,29 @@ export function TaskItem({ task }: { task: Task }) {
                 {formatDuration(task.focusMinutes)} focused
               </span>
             )}
-            {task.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary-soft"
-              >
-                #{tag}
+            {task.tags.length > 0 && (
+              <span className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                {task.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary-soft shadow-[inset_0_0_0_1px_rgba(75,98,255,0.16)]"
+                  >
+                    #{tag}
+                  </span>
+                ))}
               </span>
-            ))}
+            )}
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-300 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+        {/*
+         * Phones have no hover, so the row's actions sit on their own line
+         * beneath the meta instead of squeezing the title: four 32px buttons
+         * beside a 14px title left roughly half of every task's name under an
+         * ellipsis. From `sm` up there is room for them on the row's right, and
+         * from `lg` they step back until the row is hovered or focused.
+         */}
+        <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-300 max-sm:order-last max-sm:w-full max-sm:justify-end max-sm:gap-1 max-sm:pt-1 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
           {!task.completed && (
             <>
               <motion.button
@@ -288,7 +307,7 @@ export function TaskItem({ task }: { task: Task }) {
                   event.stopPropagation();
                   handleStartTimer();
                 }}
-                className={cn(actionClass, isLinked && "text-primary-soft")}
+                className={cn(actionClass, "max-sm:size-7", isLinked && "text-primary-soft")}
                 aria-label={
                   isLinked
                     ? `${
@@ -308,7 +327,7 @@ export function TaskItem({ task }: { task: Task }) {
                   /* Entering Focus Mode is the start: no second click. */
                   enterFocus(task.id);
                 }}
-                className={cn(actionClass, "hover:text-primary-soft")}
+                className={cn(actionClass, "max-sm:size-7", "hover:text-primary-soft")}
                 aria-label={`Enter focus mode for “${task.title}”`}
                 title="Focus mode — starts the session"
               >
@@ -323,7 +342,7 @@ export function TaskItem({ task }: { task: Task }) {
               event.stopPropagation();
               openEdit(task.id);
             }}
-            className={actionClass}
+            className={cn(actionClass, "max-sm:size-7")}
             aria-label={`Edit “${task.title}”`}
             title="Edit"
           >
@@ -338,7 +357,7 @@ export function TaskItem({ task }: { task: Task }) {
             }}
             className={cn(
               actionClass,
-              "hover:bg-destructive/10 hover:text-destructive",
+              "max-sm:size-7 hover:bg-destructive/10 hover:text-destructive",
             )}
             aria-label={`Delete “${task.title}”`}
             title="Delete"

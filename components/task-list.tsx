@@ -89,7 +89,7 @@ export function TaskList() {
 
   return (
     <section className="panel overflow-hidden" aria-label="Tasks">
-      <div className="flex flex-wrap items-center gap-2 border-b border-hairline px-3.5 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-hairline px-4 py-3">
         <div
           role="group"
           aria-label="Filter tasks"
@@ -104,7 +104,7 @@ export function TaskList() {
                 aria-pressed={active}
                 onClick={() => setFilter(option.value)}
                 className={cn(
-                  "relative cursor-pointer rounded-[10px] px-3 py-1.5 text-caption font-semibold transition-colors duration-200",
+                  "relative cursor-pointer rounded-[10px] px-3 py-2 text-caption font-semibold transition-colors duration-200",
                   active
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -133,8 +133,11 @@ export function TaskList() {
         </div>
 
         {tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span aria-hidden className="mx-1 h-4 w-px bg-hairline" />
+          <div className="flex flex-wrap items-center gap-1.5 max-sm:order-last max-sm:w-full max-sm:pt-1">
+            <span
+              aria-hidden
+              className="mx-1 h-4 w-px bg-hairline max-sm:hidden"
+            />
             {tags.map((tag) => {
               const active = tagFilter === tag;
               return (
@@ -169,7 +172,7 @@ export function TaskList() {
         )}
       </div>
 
-      <div className="px-1.5 py-1.5">
+      <div className="px-1 py-1.5">
         <AnimatePresence mode="popLayout">
           {visible.length > 0 ? (
             <motion.ul

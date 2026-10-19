@@ -12,10 +12,11 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground shadow-[0_12px_30px_-18px_rgba(75,98,255,0.95)] hover:-translate-y-px hover:bg-[#5b70ff] active:translate-y-0",
         secondary:
-          "border border-hairline bg-secondary text-secondary-foreground hover:border-white/15 hover:bg-accent",
+          "border border-hairline bg-secondary text-secondary-foreground hover:border-white/15 hover:bg-accent active:bg-accent/70",
         outline:
-          "border border-white/12 bg-transparent text-foreground hover:border-white/20 hover:bg-surface",
-        ghost: "text-muted-foreground hover:bg-surface hover:text-foreground",
+          "border border-white/12 bg-transparent text-foreground hover:border-white/20 hover:bg-surface active:bg-white/[0.06]",
+        ghost:
+          "text-muted-foreground hover:bg-surface hover:text-foreground active:bg-white/[0.08]",
         ivory:
           "bg-ivory text-[#0a0a0b] shadow-[0_12px_30px_-20px_rgba(232,226,214,0.8)] hover:-translate-y-px hover:brightness-105 active:translate-y-0",
         destructive:

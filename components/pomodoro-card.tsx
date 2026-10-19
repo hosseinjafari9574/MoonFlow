@@ -115,7 +115,7 @@ export function PomodoroCard() {
       : "paused";
 
   return (
-    <section className="panel relative overflow-hidden p-5" aria-label="Pomodoro timer">
+    <section className="panel relative overflow-hidden p-4" aria-label="Pomodoro timer">
       {/*
        * The room changes colour with the phase. A masked bloom rather than
        * `blur-[90px]`: this card sits inside the shell that scales on the way
@@ -183,7 +183,7 @@ export function PomodoroCard() {
           </div>
         </div>
         <div className="text-right">
-          <p className="text-micro font-medium uppercase text-muted-foreground">
+          <p className="text-micro font-semibold uppercase text-muted-foreground">
             {sessionWord} {Math.min(sessions + 1, longBreakAfter)} of{" "}
             {longBreakAfter}
           </p>
@@ -297,18 +297,25 @@ export function PomodoroCard() {
             >
               {formatClock(remainingMs)}
             </motion.span>
-            <span className="mt-1 max-w-[150px] truncate text-micro text-muted-foreground">
+            <span className="mt-1 max-w-[168px] truncate text-micro text-muted-foreground">
               {linkedTask ? linkedTask.title : "No task linked"}
             </span>
           </div>
         </ProgressRing>
       </div>
 
+      {/*
+       * One line, one height, one radius — the same rhythm Focus Mode's own
+       * control row uses. The primary is a 48px `lg` button with three quiet
+       * 48px icons beside it, so the card and the room read as one system
+       * rather than as a header, a row of chips and a ring. At the card's 308px
+       * inner width this lands exactly: 128 + (3 × 48) + (3 × 8) = 296.
+       */}
       <div className="relative mt-5 flex items-center justify-center gap-2">
         <Button
           variant={isFocus ? "default" : "ivory"}
           size="lg"
-          className="min-w-[136px]"
+          className="min-w-[128px]"
           onClick={() => useTimerStore.getState().toggle()}
           aria-label={running ? "Pause timer" : "Start timer"}
         >
@@ -324,8 +331,8 @@ export function PomodoroCard() {
         </Button>
         <Button
           variant="outline"
-          size="icon"
-          className="size-10"
+          size="lg"
+          className="w-12 px-0"
           onClick={() => useTimerStore.getState().reset()}
           aria-label="Reset current session"
           title="Reset"
@@ -334,8 +341,8 @@ export function PomodoroCard() {
         </Button>
         <Button
           variant="outline"
-          size="icon"
-          className="size-10"
+          size="lg"
+          className="w-12 px-0"
           onClick={() => useTimerStore.getState().skip()}
           aria-label="Skip to next session"
           title="Skip"
@@ -351,8 +358,8 @@ export function PomodoroCard() {
          */}
         <Button
           variant="outline"
-          size="icon"
-          className="size-10"
+          size="lg"
+          className="w-12 px-0"
           onClick={() => focusTarget && enterFocus(focusTarget.id)}
           disabled={!focusTarget}
           aria-label={
@@ -429,7 +436,7 @@ export function PomodoroCard() {
                * list and the card always name the same task. */
               useUiStore.getState().select(id);
             }}
-            className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-hairline bg-white/[0.03] px-3 pr-9 text-caption text-foreground outline-none transition-colors duration-200 hover:border-white/15 focus-visible:border-primary/50"
+            className="field h-10 w-full cursor-pointer appearance-none px-3 pr-9 text-caption text-foreground outline-none"
           >
             <option value="">No task linked</option>
             {activeTasks.map((task) => (

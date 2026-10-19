@@ -61,10 +61,16 @@ export function FocusControls({
       variants={focusItem}
       className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3"
     >
+      {/*
+       * On a phone the row cannot hold four 48px controls beside one another,
+       * so the primary takes the full line and the three quieter ones centre
+       * beneath it. Two rows of deliberate width read better than a 2 + 2 wrap
+       * whose first row happens to fit and whose second row is two loose icons.
+       */}
       <Button
         variant={isFocus ? "default" : "ivory"}
         size="lg"
-        className="min-w-[164px]"
+        className="w-full sm:w-auto sm:min-w-[164px]"
         onClick={onToggle}
         aria-label={running ? "Pause timer" : fresh ? "Start timer" : "Resume timer"}
       >

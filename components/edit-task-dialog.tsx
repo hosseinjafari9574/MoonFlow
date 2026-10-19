@@ -127,7 +127,7 @@ export function EditTaskDialog() {
                     aria-checked={active}
                     onClick={() => setPriority(value)}
                     className={cn(
-                      "flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-caption font-semibold transition-all duration-200",
+                      "flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-caption font-semibold transition-all duration-200",
                       active
                         ? "border-white/15 bg-white/[0.06] text-foreground"
                         : "border-hairline text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
@@ -163,27 +163,26 @@ export function EditTaskDialog() {
             </p>
           )}
 
-          <DialogFooter className="items-center gap-2 sm:justify-between">
+          <DialogFooter className="items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={handleDelete}
-              className="gap-1.5 text-muted-foreground hover:text-destructive"
+              className="gap-1.5 text-muted-foreground hover:text-destructive max-sm:justify-center"
             >
-              <Trash2 className="size-3.5" />
+              <Trash2 className="size-4" />
               Delete
             </Button>
-            <div className="flex gap-2">
+            <div className="flex gap-2 max-sm:w-full">
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={closeEdit}
+                className="max-sm:flex-1"
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm">
+              <Button type="submit" className="max-sm:flex-1">
                 Save changes
               </Button>
             </div>

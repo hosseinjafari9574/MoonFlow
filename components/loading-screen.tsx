@@ -12,7 +12,7 @@ import { MoonFlowMark } from "@/components/moonflow-mark";
 export function LoadingScreen() {
   return (
     <div
-      className="mx-auto w-full max-w-6xl px-5 py-6 lg:py-8"
+      className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-5 lg:py-8"
       aria-busy="true"
       aria-label="Loading your tasks"
     >
@@ -41,7 +41,7 @@ export function LoadingScreen() {
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="grid content-start gap-5">
-            <div className="panel p-5">
+            <div className="panel p-4">
               <div className="flex justify-between">
                 <span className="skeleton h-2.5 w-14" />
                 <span className="skeleton h-2.5 w-28" />
@@ -58,7 +58,7 @@ export function LoadingScreen() {
                 <span className="skeleton h-full w-full" />
               </div>
             </div>
-            <div className="panel flex h-[60px] items-center gap-3 px-3.5">
+            <div className="panel flex h-[60px] items-center gap-3 px-4">
               <span className="skeleton size-8" />
               <span className="skeleton h-3 w-52" />
             </div>
@@ -74,7 +74,7 @@ export function LoadingScreen() {
               ))}
             </div>
           </div>
-          <div className="panel grid content-start gap-4 p-5 lg:sticky lg:top-24">
+          <div className="panel grid content-start gap-4 p-4 lg:sticky lg:top-24">
             <span className="skeleton h-2.5 w-20" />
             <span className="skeleton mx-auto size-[180px] rounded-full" />
             <div className="flex justify-center gap-2">

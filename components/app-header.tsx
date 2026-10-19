@@ -59,7 +59,7 @@ export function AppHeader() {
           : "border-transparent bg-transparent",
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-5">
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-5">
         <div className="flex items-center gap-3">
           <span
             aria-hidden
@@ -84,7 +84,9 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <div className="inset flex items-center gap-2 rounded-xl px-3 py-2">
+          {/* The same 36px height as the outline button beside it: two
+              controls on one row should share a top and a bottom edge. */}
+          <div className="inset flex h-9 items-center gap-2 rounded-xl px-3">
             <span className="text-muted-foreground" aria-hidden>
               {soundEnabled ? (
                 <Volume2 className="size-4" />

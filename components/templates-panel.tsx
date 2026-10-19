@@ -105,7 +105,7 @@ export function TemplatesPanel() {
 
   return (
     <section className="panel overflow-hidden" aria-label="Routines">
-      <div className="flex items-center justify-between gap-3 border-b border-hairline px-3.5 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-micro font-semibold uppercase text-muted-foreground">
             Routines
@@ -149,7 +149,7 @@ export function TemplatesPanel() {
           </Button>
         </div>
       ) : (
-        <div className="max-h-72 overflow-y-auto overscroll-y-contain px-1.5 py-1.5">
+        <div className="max-h-72 overflow-y-auto overscroll-y-contain px-1 py-1.5">
           <motion.ul
             variants={listContainer}
             initial="hidden"
@@ -187,7 +187,7 @@ export function TemplatesPanel() {
                     aria-label={`Add ${template.name} to your list — ${count} ${
                       count === 1 ? "task" : "tasks"
                     }`}
-                    className="relative flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl px-2 py-2 text-left"
+                    className="relative flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left"
                   >
                     <span
                       aria-hidden

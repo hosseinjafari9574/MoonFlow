@@ -279,24 +279,26 @@ export function TemplateDialog() {
           </div>
 
           <DialogFooter
-            className={cn("items-center gap-2", template && "sm:justify-between")}
+            className={cn(
+              "items-stretch gap-2 sm:flex-row sm:items-center",
+              template && "sm:justify-between",
+            )}
           >
             {template && (
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="w-fit gap-1.5 text-muted-foreground hover:text-destructive"
+                className="w-fit gap-1.5 text-muted-foreground hover:text-destructive max-sm:w-full max-sm:justify-center"
                 onClick={() => {
                   deleteTemplateWithUndo(template);
                   closeEditor();
                 }}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-4" />
                 Delete
               </Button>
             )}
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
               {/* Why Save is still dark, said where the button is. */}
               {!canSave && (
                 <p
@@ -306,10 +308,15 @@ export function TemplateDialog() {
                   {named ? "Add at least one task" : "Give the routine a name"}
                 </p>
               )}
-              <Button type="button" variant="ghost" size="sm" onClick={closeEditor}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={closeEditor}
+                className="max-sm:flex-1"
+              >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={!canSave}>
+              <Button type="submit" disabled={!canSave} className="max-sm:flex-1">
                 {template ? "Save changes" : "Save routine"}
               </Button>
             </div>

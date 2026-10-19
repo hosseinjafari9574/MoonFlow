@@ -50,9 +50,9 @@ function AppShell() {
         </div>
         <aside className="grid content-start gap-4 lg:sticky lg:top-24 lg:self-start">
           <PomodoroCard />
-          <p className="px-1 text-center text-[11px] leading-relaxed text-muted-foreground/85 lg:text-left">
+          <p className="px-4 text-center text-[11px] leading-relaxed text-balance text-muted-foreground/85 lg:text-left">
             Press <span className="kbd mx-0.5 align-middle">?</span> for
-            shortcuts · everything is stored locally on this device.
+            shortcuts · everything stays on this device.
           </p>
         </aside>
       </main>

@@ -24,8 +24,7 @@ const GROUPS: { title: string; items: { keys: string[]; description: string }[] 
       title: "Focus & timer",
       items: [
         { keys: ["F"], description: "Toggle Focus Mode" },
-        { keys: ["Space"], description: "Start / pause the pomodoro" },
-        { keys: ["P"], description: "Start / pause the pomodoro" },
+        { keys: ["Space", "P"], description: "Start / pause the pomodoro" },
         { keys: ["Esc"], description: "Exit Focus Mode / close dialogs" },
       ],
     },
@@ -52,7 +51,7 @@ export function ShortcutsDialog() {
         <div className="grid gap-5">
           {GROUPS.map((group) => (
             <div key={group.title}>
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="mb-2 text-micro font-semibold uppercase text-muted-foreground">
                 {group.title}
               </h3>
               <ul className="grid gap-1.5">

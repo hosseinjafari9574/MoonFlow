@@ -46,7 +46,7 @@ export function FocusTopBar({
       <span className="flex min-w-0 items-center gap-3">
         <MoonFlowMark className="size-5 shrink-0 text-ivory/60" />
         <span
-          className="inset hidden min-w-0 items-center gap-2 rounded-xl px-3 py-2 sm:inline-flex"
+          className="inset hidden h-9 min-w-0 items-center gap-2 rounded-xl px-3 sm:inline-flex"
           title={`${presetMeta.label} preset — ${presetBlurb(presetMeta)}`}
         >
           <span
