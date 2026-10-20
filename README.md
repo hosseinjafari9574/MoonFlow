@@ -25,6 +25,28 @@ Names screened and rejected for collisions: *Vigil* (surveillance/VMS software),
 
 ## Screenshots
 
+**The day** — the list, this week's focus chart and the timer card, with two
+sessions already banked and the clock pointed at the next one. It leads the
+gallery because it is the first thing the app answers: what is left today, what
+the week adds up to, and what is running.
+
+![The task list, this week's focus chart and the timer card](docs/png/app-list.png)
+
+**Focus Mode** — that same session, entered. Everything but one task, its title,
+the moon and the clock is gone; the card's dial is here at full size, the
+cycle's four moons sit beneath it, and the day's total and streak hold one quiet
+line. The room is shot at laptop size (1280×900), because a room that needs a
+cinema to breathe is not a room you can work in.
+
+![Focus Mode at desktop size, one session just started](docs/png/focus-room.png)
+
+Both pictures are `npm run shots`: a fixed day's work seeded into a headless
+Chrome and photographed, so they are regenerated rather than hand-taken. The
+room's clock is stopped at the 12:00 the card shows — entering Focus Mode starts
+the session — and the key hints have already faded, so two runs differ only
+where the app itself changed. The object-level shots below come from
+`npm run verify:visuals` in the same spirit.
+
 **The instrument** — a task card carrying its own Pomodoro dial. The mark's
 own composition — a graphite ring with a moon at its centre and one indigo dot
 for live state — is here at the card's size, not only as the header's small
