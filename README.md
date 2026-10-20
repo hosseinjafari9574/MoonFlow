@@ -142,7 +142,7 @@ announcement, the departure's freeze, the task-completion flow — and composes
 
 ```
 components/focus/
-  geometry.ts     moon light axis + `nightOffset`, orbit maths, burst table (no JSX)
+  geometry.ts     moon light axis + phase terminator, orbit maths, burst table (no JSX)
   room.tsx        the sky, the nebula, the twinkle, the motes, the grain
   moon.tsx        the disc, its limb, and the phase glyph at marker size
   orbit.tsx       the satellite on its slow orbit
@@ -166,7 +166,7 @@ Tokens live in `app/globals.css` under `@theme` (`background`, `foreground`,
 surface overlays, the `--text-*` type scale, and the sans/mono families). One
 more sits outside `@theme`, on `:root`, because the moon's unlit side is a
 judgement rather than a system colour: `--moon-dark`, which the dial's disc and
-the night side sliding off it are both painted in, and `--moon-glyph`, one step
+the unlit part of its terminator are both painted in, and `--moon-glyph`, one step
 lighter, for the 14px moons in the cycle strip. Plain custom properties because
 Tailwind emits only the theme variables it sees used in class names, and the two
 tokens in the app whose *values* were picked by eye off samples

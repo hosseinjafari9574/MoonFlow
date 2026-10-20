@@ -24,10 +24,12 @@
  *           quarter turn behind the arc, and only the pixels showed it.
  *
  *   moon    the room's disc. Its light's position is read from the gradient and
- *           compared with `MOON_LIGHT`; the night side's travel is compared with
- *           `nightOffset(lit)` computed here, independently; the disc's fill with
- *           `--moon-dark`; and the pixels are sampled on both sides of the
- *           terminator and along both limbs.
+ *           compared with `MOON_LIGHT`; the terminator's waist is compared with
+ *           the exact `|2k − 1|` its lit fraction implies, and its side and
+ *           angle with the light's axis; the disc's fill with `--moon-dark`;
+ *           and the pixels are sampled on both sides of the terminator and along
+ *           both limbs. The same is read once more on a gibbous session, where
+ *           the old offset-disc construction could only draw a lens.
  *
  *   strip   the four phases. Each mask's rotation must be the night axis from
  *           `geometry.ts` and each terminator's waist the one `|2k − 1|` gives;
@@ -119,20 +121,6 @@ function nightAxis(light) {
   const dy = light.y / 100 - 0.5;
   const length = Math.hypot(dx, dy);
   return { x: -dx / length, y: -dy / length };
-}
-
-/** `nightOffset` from geometry.ts, independently: thirty bisections, percent. */
-function nightOffset(lit) {
-  const target = Math.min(1, Math.max(0, lit));
-  let lo = 0;
-  let hi = 1;
-  for (let step = 0; step < 30; step += 1) {
-    const t = (lo + hi) / 2;
-    const lens = (2 / Math.PI) * (Math.acos(t) - t * Math.sqrt(1 - t * t));
-    if (1 - lens < target) lo = t;
-    else hi = t;
-  }
-  return ((lo + hi) / 2) * 100;
 }
 
 /* -------------------------------------------------------------------- app */
@@ -362,13 +350,15 @@ function readFocusRoom() {
 
   const instrument = dialog.querySelector("div.relative.flex-none");
   const moon = instrument?.children?.[1] ?? null;
-  const light = moon?.children?.[0] ?? null;
-  const night = moon?.children?.[1] ?? null;
+  /* The body is the SVG holding the clip definition, then the lit layer. */
+  const clipPath = moon?.querySelector("clipPath path") ?? null;
+  const light = moon?.children?.[1] ?? null;
   const disc = moon?.getBoundingClientRect() ?? null;
   const gradient = light ? getComputedStyle(light).backgroundImage : "";
   const at = /circle at ([\d.]+)% ([\d.]+)%/.exec(gradient);
-  const transform = night ? getComputedStyle(night).transform : "";
-  const matrix = transform && transform !== "none" ? new DOMMatrixReadOnly(transform) : null;
+  const path = clipPath?.getAttribute("d") ?? "";
+  const terminatorArc = /A ([\d.]+) 0\.5 0 0 ([01]) 0\.5 0/.exec(path);
+  const angleMatch = (clipPath?.getAttribute("transform") || "").match(/rotate\(([-\d.]+)/);
 
   const strip = dialog.querySelector('[role="img"]');
   const glyphs = strip
@@ -405,9 +395,15 @@ function readFocusRoom() {
       box: disc ? { x: disc.x, y: disc.y, w: disc.width, h: disc.height } : null,
       light: at ? { x: Number(at[1]), y: Number(at[2]) } : null,
       fill: moon ? getComputedStyle(moon).backgroundColor : null,
-      translate: matrix
-        ? { x: (matrix.e / disc.width) * 100, y: (matrix.f / disc.height) * 100 }
-        : null,
+      phase: {
+        path,
+        /* The terminator's waist, as a fraction of the radius. */
+        rx: terminatorArc ? Number(terminatorArc[1]) : 0,
+        /* 0 draws the ellipse on the night side (gibbous), 1 on the lit side. */
+        sweep: terminatorArc ? Number(terminatorArc[2]) : null,
+        angle: angleMatch ? Number(angleMatch[1]) : null,
+        clip: light ? getComputedStyle(light).clipPath : null,
+      },
     },
     strip: {
       label: strip?.getAttribute("aria-label") ?? null,
@@ -530,11 +526,20 @@ async function measurePixels(spec) {
     /* `u` points from the centre toward the light, so the lit half is +u. */
     const at = (dx, dy, fraction) =>
       meanAt(cx + dx * fraction * radius, cy + dy * fraction * radius, 3);
+    /*
+     * A point on the diameter through the poles, off the clock: dark in a
+     * crescent, lit in a gibbous. It is where the old offset-disc construction
+     * started drawing the wrong shape, so it reads the phase in pixels rather
+     * than only in the path.
+     */
+    const vx = -uy;
+    const vy = ux;
     return {
       litSide: at(ux, uy, 0.72),
       nightSide: at(-ux, -uy, 0.72),
       litLimb: at(ux, uy, 0.88),
       nightLimb: at(-ux, -uy, 0.88),
+      litPastCentre: at(vx, vy, 0.62),
       centre: at(0, 0, 0.1),
     };
   }
@@ -739,7 +744,7 @@ async function main() {
      * first paint, and writing into a mounted page races the clock's own
      * persistence.
      */
-    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+    const seed = await session.send("Page.addScriptToEvaluateOnNewDocument", {
       source: `try {
         localStorage.setItem(${JSON.stringify(TASKS_KEY)}, ${JSON.stringify(JSON.stringify(todos))});
         localStorage.setItem(${JSON.stringify(TIMER_KEY)}, ${JSON.stringify(JSON.stringify(timer))});
@@ -910,17 +915,23 @@ async function main() {
 
     const moonProgress = dial.progress;
     const moonLit = source.minLit + (1 - source.minLit) * moonProgress;
-    const wantNight = nightOffset(moonLit);
-    const wantX = (wantNight * axis.x).toFixed(2);
-    const wantY = (wantNight * axis.y).toFixed(2);
-    record(
-      "moon/night-travel",
-      Math.abs(moon.translate.x - Number(wantX)) <= 0.35 &&
-        Math.abs(moon.translate.y - Number(wantY)) <= 0.35,
-      `measured (${fmt(moon.translate.x)}%, ${fmt(moon.translate.y)}%), expected (${wantX}%, ${wantY}%) for lit ${fmt(moonLit, 3)}`,
+    /*
+     * The lit region's terminator: an ellipse through both poles whose waist is
+     * `|2k − 1|` of the radius, drawn as a fraction of the radius in the DOM.
+     */
+    const wantWaist = Math.abs(2 * moonLit - 1) * 0.5;
+    near("moon/terminator-waist", moon.phase.rx, wantWaist, 0.002);
+    same(
+      "moon/terminator-side",
+      moon.phase.sweep,
+      moonLit >= 0.5 ? 0 : 1,
     );
-    const measuredAxisAngle = (Math.atan2(moon.translate.y, moon.translate.x) * 180) / Math.PI;
-    near("moon/night-axis", measuredAxisAngle, axisAngle, 0.3, "°");
+    near("moon/terminator-angle", moon.phase.angle, axisAngle, 0.05, "°");
+    record(
+      "moon/clip-applied",
+      /url\(/.test(moon.phase.clip || "") && /A 0\.5 0\.5/.test(moon.phase.path),
+      `light layer clip ${moon.phase.clip}, path “${moon.phase.path}”`,
+    );
     record(
       "moon/terminator-band",
       terminatorAngle >= 52 && terminatorAngle <= 65,
@@ -941,6 +952,11 @@ async function main() {
       `night side ${fmt(moonPixels.nightSide, 1)} luma, lit side ${fmt(moonPixels.litSide, 1)}`,
     );
     atLeast("moon/light-from-the-left", moonPixels.litLimb - moonPixels.nightLimb, 3, " luma");
+    record(
+      "moon/past-centre-dark",
+      moonPixels.litPastCentre - moonPixels.nightSide <= 9,
+      `pole line ${fmt(moonPixels.litPastCentre, 1)} luma, night side ${fmt(moonPixels.nightSide, 1)} (crescent: both dark; the glow is not a phase)`,
+    );
 
     same("strip/count", strip.count, source.cycle);
     same(
@@ -1011,7 +1027,78 @@ async function main() {
       `full moon's lit side r−b ${pendingWarmth}`,
     );
 
+    /*
+     * The gibbous half of the session, where the old offset-disc construction
+     * failed: a second disc's edge cannot bow the right way past half, so it
+     * drew a lens instead of a moon. Seed a session four fifths run and read
+     * the same path back, then sample the pixels around its waist.
+     */
+    const gibbousRemaining = 5;
+    const gibbousTimer = {
+      ...timer,
+      state: { ...timer.state, remainingMs: gibbousRemaining * 60_000 },
+    };
+    await session.send("Page.removeScriptToEvaluateOnNewDocument", {
+      identifier: seed.identifier,
+    });
+    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `try {
+        localStorage.setItem(${JSON.stringify(TIMER_KEY)}, ${JSON.stringify(JSON.stringify(gibbousTimer))});
+      } catch {}`,
+    });
+    await loadPhone();
+    const gibbous = await inPage(session, readFocusRoom);
+    if (!gibbous) throw new Error("Focus Mode did not reopen for the gibbous check");
+    const gibbousProgress = 1 - gibbousRemaining / source.focusMinutes;
+    const gibbousLit = source.minLit + (1 - source.minLit) * gibbousProgress;
+    console.log(`\nmoon — gibbous, ${gibbousRemaining}/${source.focusMinutes} min remaining\n`);
+    near(
+      "moon-gibbous/terminator-waist",
+      gibbous.moon.phase.rx,
+      Math.abs(2 * gibbousLit - 1) * 0.5,
+      0.002,
+    );
+    same("moon-gibbous/terminator-side", gibbous.moon.phase.sweep, 0);
+    near("moon-gibbous/terminator-angle", gibbous.moon.phase.angle, axisAngle, 0.05, "°");
+    record(
+      "moon-gibbous/clip-applied",
+      /url\(/.test(gibbous.moon.phase.clip || "") && /A 0\.5 0\.5/.test(gibbous.moon.phase.path),
+      `light layer clip ${gibbous.moon.phase.clip}`,
+    );
+
+    if (!gibbous.moon.box) throw new Error("the gibbous moon's disc did not render");
+    const gibbousShot = await capture("moon-gibbous.png", gibbous.moon.box, 2);
+    const gibbousPixels = await inPage(session, measurePixels, {
+      kind: "moon",
+      shot: gibbousShot,
+      light: source.light,
+    });
+    atLeast(
+      "moon-gibbous/lit-side-above-night",
+      gibbousPixels.litSide - gibbousPixels.nightSide,
+      4,
+      " luma",
+    );
+    record(
+      "moon-gibbous/night-side-dark",
+      gibbousPixels.nightSide <= 30,
+      `night side ${fmt(gibbousPixels.nightSide, 1)} luma, lit side ${fmt(gibbousPixels.litSide, 1)}`,
+    );
+    atLeast(
+      "moon-gibbous/light-from-the-left",
+      gibbousPixels.litLimb - gibbousPixels.nightLimb,
+      3,
+      " luma",
+    );
+    atLeast(
+      "moon-gibbous/past-centre-lit",
+      gibbousPixels.litPastCentre - gibbousPixels.nightSide,
+      5,
+      " luma",
+    );
+
     report.room = room;
+    report.gibbous = gibbous.moon;
     report.ring = ring;
     report.strip = stripPixels;
   } catch (error) {

@@ -131,14 +131,15 @@ export function FocusInstrument({
        * The moon, at the centre of its own dial — the composition the app's mark
        * is built from (docs/mark.md), at full size, and the second reading of the
        * same number the arc carries: its lit *fraction* is the session's elapsed
-       * fraction, so it waxes from a hairline crescent to a full face across the
-       * session.
+       * fraction, so it waxes from a hairline crescent through half to a full
+       * face across the session. It is a real terminator, not the edge of a
+       * second disc: a phase that only *slides* reads as a crescent up to half
+       * and then as a lens, because an equal disc's edge bows the wrong way.
        */}
       <MoonBody
         inset={moon.inset}
+        lit={moon.lit}
         wash={moon.wash}
-        nightX={moon.nightX}
-        nightY={moon.nightY}
         reduceMotion={reduceMotion}
       />
 

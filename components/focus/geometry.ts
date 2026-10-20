@@ -1,18 +1,19 @@
 /**
  * The room's numbers — everything in Focus Mode that is arithmetic and nothing
- * else: where the moon's light comes from, how far its night side has to slide
- * for a given lit fraction, where the satellite sits on its orbit, and the
- * table the completion burst is placed from.
+ * else: where the moon's light comes from, the terminator its lit fraction
+ * implies, where the satellite sits on its orbit, and the table the completion
+ * burst is placed from.
  *
  * Kept apart from the components on purpose. A change to the *shape* of the
  * room cannot reach the store, the timer or the DOM from here, and
- * `.freebuff/wax-probe.mjs` and `.freebuff/phase-probe.mjs` check these numbers
- * against the shipped build's own pixels.
+ * `scripts/verify-visuals.mjs` checks these numbers against the shipped build's
+ * own pixels — including a gibbous session, where the terminator must bow the
+ * other way.
  */
 
 /**
  * Where the moon's light comes from, in percent of its own box. Its surface
- * gradient and the axis its night side travels along are both derived from this
+ * gradient and the axis its terminator is turned on are both derived from this
  * one point, so the light never disagrees with itself.
  *
  * **The left, a little below the middle.** A session opens as a crescent on the
@@ -50,9 +51,10 @@
 export const MOON_LIGHT = { x: 24, y: 68 } as const;
 
 /**
- * The unit vector from the light, through the disc: the way the night side
- * slides. Away from the source, so it travels up and to the right and the last
- * of the light to go is the lower-left limb — the one the highlight sits on.
+ * The unit vector from the light, through the disc: the axis the terminator's
+ * ellipse is turned on, and the direction its waist is measured along. Away from
+ * the source, so it points up and to the right and the last of the light to go
+ * is the lower-left limb — the one the highlight sits on.
  */
 export const MOON_NIGHT_AXIS = (() => {
   const dx = MOON_LIGHT.x / 100 - 0.5;
@@ -98,30 +100,6 @@ export const MOON_GLYPH = "var(--moon-glyph)";
  */
 export const MOON_MIN_LIT = 0.06;
 
-/**
- * How far the night-side disc has to slide, as a percentage of the moon's own
- * width, for the *lit area* to be `lit` of the disc.
- *
- * Two equal discs offset by `k` leave a lune whose area is the disc less the lens
- * they share; with `t = k / 2r` that lens is `2r²(acos t − t√(1−t²))`, so the lit
- * fraction is `1 − (2/π)(acos t − t√(1−t²))` — rising from 0 at `t = 0` (the discs
- * coincident) to 1 at `t = 1` (tangent), and with no closed-form inverse. Thirty
- * bisections of a function this flat agree with the exact value to far under a
- * pixel, at 5 Hz.
- */
-export function nightOffset(lit: number): number {
-  const target = Math.min(1, Math.max(0, lit));
-  let lo = 0;
-  let hi = 1;
-  for (let step = 0; step < 30; step += 1) {
-    const t = (lo + hi) / 2;
-    const lens = (2 / Math.PI) * (Math.acos(t) - t * Math.sqrt(1 - t * t));
-    if (1 - lens < target) lo = t;
-    else hi = t;
-  }
-  return ((lo + hi) / 2) * 100;
-}
-
 /** The phase glyph's disc, in its own 24-unit canvas. */
 export const PHASE_RADIUS = 10;
 
@@ -153,11 +131,12 @@ export interface PhaseGeometry {
  * the unlit region's horns stop short of the poles. At three quarters it spanned
  * **101°** of the rim instead of 180° and sat in the disc's corner with the far
  * limb still lit: a lens, where the waxing gibbous — the phase the cycle shows —
- * is the one shape that makes the difference unmissable. The instrument is a
- * different case: its night side is a disc sliding on a promoted layer because a
- * masked terminator would repaint the whole disc on every one of a session's
- * ~7500 ticks (docs/motion-budget.md), and the strip, four static rasters, can
- * afford the real one.
+ * is the one shape that makes the difference unmissable. The instrument used to
+ * be the same construction for paint-budget reasons, and had the same bug after
+ * half; both sizes now draw this terminator. The instrument clips its light
+ * layer with it (quantised to a thousandth, so the disc repaints about once a
+ * second rather than on all ~7500 ticks), and the strip, four static rasters,
+ * draws it directly.
  *
  * The glyph is drawn in `components/focus/moon.tsx` as the half-plane the light
  * occupies — cut by the diameter through the centre, which is exactly where a
@@ -213,9 +192,6 @@ export interface MoonGeometry {
    * twenty-one steps over a whole session is invisible but saves ~750 repaints.
    */
   wash: number;
-  /** The night side's travel along the light's axis, in percent of its width. */
-  nightX: string;
-  nightY: string;
 }
 
 /**
@@ -246,16 +222,19 @@ export function moonGeometry(ringSize: number, progress: number): MoonGeometry {
    * what keeps the reading *inside* the moon rather than filling it.
    */
   const clockPx = Math.round(disc * 0.2);
-  const lit = MOON_MIN_LIT + (1 - MOON_MIN_LIT) * progress;
-  const night = nightOffset(lit);
+  /*
+   * A thousandth of the disc. `progress` changes five times a second, and the
+   * terminator's path is a style: quantising it means the disc repaints about
+   * once a second instead of 7500 times in a session, and a 0.1% step is a
+   * third of a pixel on the largest moon the room draws.
+   */
+  const lit = Math.round((MOON_MIN_LIT + (1 - MOON_MIN_LIT) * progress) * 1000) / 1000;
   return {
     inset,
     disc,
     clockPx,
     lit,
     wash: 0.86 + (Math.round(lit * 20) / 20) * 0.14,
-    nightX: (night * MOON_NIGHT_AXIS.x).toFixed(2),
-    nightY: (night * MOON_NIGHT_AXIS.y).toFixed(2),
   };
 }
 

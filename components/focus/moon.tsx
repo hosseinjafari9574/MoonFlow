@@ -7,7 +7,6 @@ import {
   MOON_GLYPH,
   MOON_LIGHT,
   PHASE_RADIUS,
-  nightOffset,
   phaseGeometry,
 } from "@/components/focus/geometry";
 import { cn } from "@/lib/utils";
@@ -17,42 +16,73 @@ import { cn } from "@/lib/utils";
  * the dial, and the phase glyph at the size of a session marker — 14px, one step
  * up from the marker itself and the size the row has always been set at.
  *
- * They are the same object lit from the same side, and they part company on how
- * the terminator is made. The instrument's night side is a disc of the room's own
- * dark sliding along `MOON_NIGHT_AXIS`, which is what keeps a session's ~7500
- * ticks off the paint path (docs/motion-budget.md). The strip's glyphs never
- * animate, so they draw a *phase*: the real terminator, which no bite out of a
- * second disc can reach (see `phaseGeometry`).
+ * They are the same object lit from the same side and, now, the same phase: the
+ * terminator is a great circle on the sphere in both. The instrument clips its
+ * light layer to the lit region (quantised, so a session's 7500 ticks cost about
+ * a thousand repaints of one disc rather than 7500 — docs/motion-budget.md); the
+ * strip's glyphs never animate, so they can draw the same shape as static
+ * rasters. The old instrument slid a second disc of the moon's own dark across
+ * this one, which draws a crescent but not a gibbous: past half an equal disc's
+ * edge bows the wrong way and the moon becomes a lens (see `phaseGeometry`).
  */
 
 /**
- * The moon's body: the sphere's own light, and the night side sliding off it.
+ * The lit region of a moon, in normalized disc coordinates: a semicircular limb
+ * on the light's side, closed by the terminator.
+ *
+ * The terminator is a *great circle* on the sphere, which projects to an ellipse
+ * through both poles of the disc, its waist `|2k − 1|` of the radius along the
+ * light's axis. The path starts at the top pole, follows the lit limb to the
+ * bottom pole, and returns along that ellipse. Short of half the ellipse bulges
+ * into the lit half (the path is cut in, a crescent); past half it bulges into
+ * the dark half (the path is let out, a gibbous moon). The same arc carries both
+ * — only its waist and sweep change — so the terminator is a phase at every
+ * fraction rather than a second disc sliding off the first.
+ *
+ * Coordinates are the 0–1 box `clipPathUnits="objectBoundingBox"` expects, and
+ * the caller rotates the path onto `MOON_NIGHT_AXIS`.
+ */
+function litPath(lit: number): string {
+  const { waist, pastHalf } = phaseGeometry(lit);
+  const rx = (waist / PHASE_RADIUS) * 0.5;
+  /*
+   * Below a hundredth of a percent the arc is a line for every purpose; SVG
+   * treats a zero radius as one anyway, so say so and keep the command valid.
+   */
+  const terminator =
+    rx < 0.0001
+      ? "L 0.5 0"
+      : `A ${rx.toFixed(5)} 0.5 0 0 ${pastHalf ? 0 : 1} 0.5 0`;
+  return `M 0.5 0 A 0.5 0.5 0 0 0 0.5 1 ${terminator} Z`;
+}
+
+/**
+ * The moon's body: the sphere's own light, cut to the session's phase.
  *
  * It is a *dark* sphere lit from the left, below the middle (see `MOON_LIGHT`).
- * The light is one gradient on the disc; the night side is a disc of the moon's
- * own dark, the same size as the moon, sliding along the light's axis until it
- * clears the disc entirely — to the right and up, at the light's own angle, so
- * the moon fills from the left.
- * Both halves are free to move on every 200ms tick — a transform on a promoted
- * layer and an opacity quantised to 5% steps — where a masked shape would
- * repaint the whole disc 7500 times over a session (docs/motion-budget.md).
+ * The light is one gradient on the disc, clipped to the exact lit region; the
+ * unlit rest is the moon's own dark. The clip is a function of `progress` and is
+ * quantized to a thousandth of the disc, so a 200ms tick changes the path only
+ * about once a second — a repaint of one disc, not of the ring, and far less
+ * often than the 7500 ticks a session would otherwise ask for
+ * (docs/motion-budget.md).
  */
 export function MoonBody({
   inset,
+  lit,
   wash,
-  nightX,
-  nightY,
   reduceMotion,
 }: {
   /** The disc's inset inside the instrument box. */
   inset: number;
+  /** Lit fraction of the disc, quantised in `moonGeometry`. */
+  lit: number;
   /** The light's opacity, quantised in `moonGeometry`. */
   wash: number;
-  /** The night side's travel, in percent of its own width. */
-  nightX: string;
-  nightY: string;
   reduceMotion: boolean;
 }) {
+  const clipId = `moon-lit-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const { angle } = phaseGeometry(lit);
   return (
     <div
       aria-hidden
@@ -60,30 +90,40 @@ export function MoonBody({
       style={{ inset, background: MOON_DARK }}
     >
       {/*
-       * The sphere's own light, brightest toward its source.
+       * The clip lives in an SVG definition so the path can carry real arcs;
+       * `objectBoundingBox` keeps it tied to the disc at any instrument size.
+       */}
+      <svg aria-hidden className="absolute size-0">
+        <defs>
+          <clipPath id={clipId} clipPathUnits="objectBoundingBox">
+            <path
+              d={litPath(lit)}
+              transform={`rotate(${angle} 0.5 0.5)`}
+            />
+          </clipPath>
+        </defs>
+      </svg>
+
+      {/*
+       * The sphere's own light, brightest toward its source, cut to the lit
+       * region. Its levels are what make the disc read as a *moon* rather than
+       * as a dark hole behind the clock: the body sits on the room's own
+       * near-black, so all of the shape comes from this layer and the limb above
+       * it.
        *
-       * Its levels are what make the disc read as a *moon* rather than as a dark
-       * hole behind the clock: the body sits on the room's own near-black, so
-       * all of the shape comes from this one gradient and the limb above it. It
-       * is still strictly a function of `progress` through the quantised `wash`
-       * below — `.freebuff/wax-probe.mjs` reads the lit fraction back off these
-       * pixels and the terminator's position off them too.
+       * The flat tint underneath is what keeps a **gibbous** moon lit to its
+       * terminator: the highlight alone falls to a near-black limb on the far
+       * side, so past half the disc read as a crescent that had been stretched
+       * rather than as a moon. The highlight stays a function of the light's
+       * position; the tint is the surface the light is falling on.
        */}
       <div
         className="absolute inset-0"
         style={{
-          background: `radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, rgba(236,240,255,0.17), rgba(139,153,255,0.062) 46%, rgba(96,110,200,0.03) 100%)`,
+          background: `radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, rgba(236,240,255,0.16), rgba(139,153,255,0.05) 48%, rgba(139,153,255,0) 82%), rgba(139,153,255,0.075)`,
           opacity: wash,
+          clipPath: `url(#${clipId})`,
           transition: reduceMotion ? "none" : "opacity 240ms linear",
-        }}
-      />
-      {/* The night side, sliding off the disc as the session fills. */}
-      <div
-        className="absolute inset-0 rounded-full will-change-transform"
-        style={{
-          background: MOON_DARK,
-          transform: `translate(${nightX}%, ${nightY}%)`,
-          transition: reduceMotion ? "none" : "transform 240ms linear",
         }}
       />
     </div>

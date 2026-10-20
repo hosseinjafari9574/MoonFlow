@@ -621,26 +621,28 @@ language:
 - **The orbit is an HTML rotation with an SVG inside it** (`.orbit-spin`),
   because a rotation inside an SVG is a *layout* change in Blink — the same
   finding that moved the comet head into a wrapper div in the clock pass.
-- **The moon is two layers, and neither repaints.** A dark disc carrying one
-  light gradient — the sphere, brightest toward its source — and, above it, the
-  night side: a disc of the room's own dark, the same size as the moon, set down
-  the light's axis. How far it slides is the session: its *lit fraction* is the
-  clock's elapsed fraction, floor-ed so a new session keeps a sliver, so the moon
-  waxes from a hairline crescent to a full face as the clock runs out
-  (`nightOffset` in `components/focus/geometry.ts`, drawn by
-  `components/focus/moon.tsx`). The travel is a
-  `translate` on a promoted layer and the wash's own opacity is quantised to the
-  same 5% steps the halo's is, because the alternative — masking the light with
-  the crescent-shaped bit of a second disc, the construction the mark itself is
-  built from — re-rasterises the whole disc on every one of a session's ~7500
-  ticks. A third layer carries the limb's rim light and falloff with no fill of
-  its own, so a new moon is still a moon: measured on the shipped build (mean of
-  a 7×7 patch, 0–255), the lit quadrant reads **52–53** across runs against **20**
-  on the unlit side and **12** of air between the disc and the ring below it — a sphere lit
-  from the **lower left**, standing clear of its own sky. (The design pass below
+- **The moon is one disc, clipped to the phase.** A dark disc carries a light
+  layer — a flat lunar tint under one highlight, brightest toward its source —
+  cut to the lit region by an SVG clip path. The terminator is a great circle on
+  the sphere: an ellipse through both poles whose waist is `|2k − 1|` of the
+  radius and whose axis is `MOON_NIGHT_AXIS` (`phaseGeometry`). The path is
+  quantised to a thousandth of the disc, so a 200ms tick only changes it about
+  once a second: a session repaints one disc ~1000 times, not 7500, and never the
+  ring. The flat tint matters past half — without it the highlight falls to a
+  near-black far limb, and a gibbous reads as a stretched crescent. A third layer
+  carries the limb's rim light and falloff with no fill of its own, so a new moon
+  is still a moon: measured on the shipped build (mean of a 7×7 patch, 0–255),
+  the lit quadrant reads **52–53** across runs against **20** on the unlit side
+  and **12** of air between the disc and the ring below it — a sphere lit from
+  the **lower left**, standing clear of its own sky. (The design pass below
   raised the lit side from ~29; the unlit side and the air are where they were.
   The light was moved to the lower left after it, which mirrors both patches and
   the strip — see "The direction" below.)
+  Before 2026-10-19 this layer was a second disc of the moon's own dark sliding
+  along the axis. That construction is exact up to half and cannot draw a gibbous:
+  an equal disc's edge bows the wrong way there, so the moon becomes a lens. The
+  clip replaced it; `verify:visuals` reads the terminator's waist, side and angle
+  at both a crescent and a gibbous, and samples the pixels around its waist.
 - **The cycle strip is four static rasters.** Four 14px moon phases (16px for one
   pass in between — see "The alignment pass" below). A phase is
   not a bite out of a disc: its terminator is a *great circle on the sphere*, so
@@ -679,7 +681,13 @@ layers.
 
 ### The moon's wax
 
-The night side is placed by inverting the geometry rather than by eye: two equal
+> **2026-10-19 — superseded.** The instrument no longer uses the sliding-disc
+> construction this section records. The table and the probe measurements below
+> are kept as the history of how those numbers were chosen; the current
+> terminator is checked by `npm run verify:visuals` (`moon/terminator-*`,
+> `moon-gibbous/*`, plus a pixel sample on the pole line).
+
+The night side was placed by inverting the geometry rather than by eye: two equal
 discs offset by `k` leave a lit lune whose fraction of the disc is
 `1 − (2/π)(acos t − t√(1−t²))` for `t = k / 2r`, and the component bisects that for
 the offset a wanted fraction needs. `.freebuff/wax-probe.mjs` checks it end to
@@ -907,7 +915,7 @@ were shipped then.
 One constant does the work. `MOON_LIGHT` in `components/focus/geometry.ts` is the
 single point the light comes from, 34% across the disc's box and 76% down it; the
 surface gradient is drawn at it and `MOON_NIGHT_AXIS` is derived from it as the unit
-vector pointing *away* from it. The night side's travel reads that axis, and so does
+vector pointing *away* from it. The terminator is turned on that axis, and so is
 the four small moons' terminator, which is why they cannot end up facing different
 ways; the limb's own rim light and far falloff follow the same direction by hand
 (`inset 1px -1px 0` for the rim, `inset -22px 26px 62px` for the falloff).
@@ -971,10 +979,11 @@ terminator lies) plus an ellipse through both poles turned to the night axis
 (`phaseGeometry`). Drawn at 14px, the third glyph is a dark crescent running from
 pole to pole down the upper-right limb: 189 lit, 8.7 dark, a sky of 27.
 
-The instrument keeps its sliding two-disc night side, because a transform on a
-promoted layer is what keeps a session's ~7500 ticks off the paint path; the two
-are the same object lit from the same side that part company on how the terminator
-is made, and the strip — four static rasters — can afford the true one.
+Both sizes draw the real terminator now. The instrument clips its light layer
+with it, quantised to a thousandth of the disc (about a thousand repaints in a
+session instead of 7500, and only of its own layer); the strip — four static
+rasters — can afford the exact shape on every paint. The two are the same object
+lit from the same side.
 
 One consequence worth recording: `drop-shadow` is cast from an element's rendered
 alpha, so the glow a banked moon carries now follows the *disc* rather than the lit
@@ -1656,8 +1665,8 @@ was to become a *grey*, with samples to choose from.
 **The angle.** Between 61° and 50° is 55.5°, and the light was walked back down
 the same axis to `MOON_LIGHT = { x: 24, y: 68 }`: the night axis 34.7° above the
 horizontal, the terminator **55.3°** from it. Nothing else had to move — the
-strip's glyphs read the axis through `phaseGeometry`, and the instrument's night
-side slides along it — but the two limb offsets are a function of the light's
+strip's glyphs read the axis through `phaseGeometry`, and the instrument's
+terminator is turned on it — but the two limb offsets are a function of the light's
 direction and were interpolated a third time: rim `2px -0.9px`, falloff
 `-21px 15px`, between the `(23, 65.5)` pair and the `(25, 71)` one.
 
