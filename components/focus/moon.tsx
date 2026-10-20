@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   MOON_DARK,
@@ -19,11 +19,12 @@ import { cn } from "@/lib/utils";
  * They are the same object lit from the same side and, now, the same phase: the
  * terminator is a great circle on the sphere in both. The instrument clips its
  * light layer to the lit region (quantised, so a session's 7500 ticks cost about
- * a thousand repaints of one disc rather than 7500 — docs/motion-budget.md); the
- * strip's glyphs never animate, so they can draw the same shape as static
- * rasters. The old instrument slid a second disc of the moon's own dark across
- * this one, which draws a crescent but not a gibbous: past half an equal disc's
- * edge bows the wrong way and the moon becomes a lens (see `phaseGeometry`).
+ * a thousand repaints of one disc rather than 7500 — docs/motion-budget.md), and
+ * eases the full-to-new hand-off when focus becomes a break. The strip's glyphs
+ * never animate, so they can draw the same shape as static rasters. The old
+ * instrument slid a second disc of the moon's own dark across this one, which
+ * draws a crescent but not a gibbous: past half an equal disc's edge bows the
+ * wrong way and the moon becomes a lens (see `phaseGeometry`).
  */
 
 /**
@@ -56,33 +57,84 @@ function litPath(lit: number): string {
   return `M 0.5 0 A 0.5 0.5 0 0 0 0.5 1 ${terminator} Z`;
 }
 
+/** How long the full moon takes to hand back to the new-moon sliver. */
+const MOON_WANE_MS = 1400;
+
+/** Slow at both ends, so the hand-off reads as a deliberate wane. */
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 /**
- * The moon's body: the sphere's own light, cut to the session's phase.
+ * The moon's body: the sphere's own light, cut to the cycle's phase.
  *
  * It is a *dark* sphere lit from the left, below the middle (see `MOON_LIGHT`).
  * The light is one gradient on the disc, clipped to the exact lit region; the
- * unlit rest is the moon's own dark. The clip is a function of `progress` and is
- * quantized to a thousandth of the disc, so a 200ms tick changes the path only
- * about once a second — a repaint of one disc, not of the ring, and far less
- * often than the 7500 ticks a session would otherwise ask for
- * (docs/motion-budget.md).
+ * unlit rest is the moon's own dark. The target path is quantized to a
+ * thousandth of the disc, so a 200ms focus tick changes it only about once a
+ * second — a repaint of one disc, not of the ring, and far less often than the
+ * 7500 ticks a session would otherwise ask for (docs/motion-budget.md).
+ *
+ * The one exception is the end of focus. The full moon has to return to new for
+ * the break, and that hand-off is eased over `MOON_WANE_MS`: about eighty
+ * frames of one clipped layer, then still for the whole break. A break's own
+ * clock never moves the target, so the moon cannot refill before the next focus
+ * session starts it again.
  */
 export function MoonBody({
   inset,
   lit,
-  wash,
   reduceMotion,
 }: {
   /** The disc's inset inside the instrument box. */
   inset: number;
-  /** Lit fraction of the disc, quantised in `moonGeometry`. */
+  /** The phase's lit fraction, quantised in `moonGeometry`. */
   lit: number;
-  /** The light's opacity, quantised in `moonGeometry`. */
-  wash: number;
   reduceMotion: boolean;
 }) {
   const clipId = `moon-lit-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const { angle } = phaseGeometry(lit);
+  const [shownLit, setShownLit] = useState(lit);
+  const shownRef = useRef(lit);
+  const frameRef = useRef<number | null>(null);
+
+  /*
+   * The focus clock only ever raises the target, so follow it directly: there is
+   * nothing to animate while the moon is filling and quantising it already keeps
+   * the repaint rate down. A *drop* is the candle being snuffed — the end of
+   * focus, a reset, a skip — and that is the one transition worth easing.
+   */
+  useEffect(() => {
+    const from = shownRef.current;
+    if (reduceMotion || lit >= from) {
+      shownRef.current = lit;
+      setShownLit(lit);
+      return;
+    }
+
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    const start = performance.now();
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - start) / MOON_WANE_MS);
+      const value = from + (lit - from) * easeInOutCubic(t);
+      shownRef.current = value;
+      setShownLit(value);
+      frameRef.current = t < 1 ? requestAnimationFrame(frame) : null;
+    };
+    frameRef.current = requestAnimationFrame(frame);
+    return () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    };
+  }, [lit, reduceMotion]);
+
+  const { angle } = phaseGeometry(shownLit);
+  /*
+   * The wash belongs to the phase too: it dims as the moon wanes, so the new
+   * moon at the start of a break is quieter than the full face that preceded it.
+   * It is quantised in the same 5% steps the previous value used, and the 240ms
+   * opacity transition smooths the steps while the clip path is already moving.
+   */
+  const wash = 0.86 + (Math.round(shownLit * 20) / 20) * 0.14;
   return (
     <div
       aria-hidden
@@ -97,7 +149,7 @@ export function MoonBody({
         <defs>
           <clipPath id={clipId} clipPathUnits="objectBoundingBox">
             <path
-              d={litPath(lit)}
+              d={litPath(shownLit)}
               transform={`rotate(${angle} 0.5 0.5)`}
             />
           </clipPath>

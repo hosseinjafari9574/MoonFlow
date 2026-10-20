@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 
 import { Celebration } from "@/components/focus/celebration";
-import { HALO_AIR, moonGeometry } from "@/components/focus/geometry";
+import { HALO_AIR, moonGeometry, moonPhaseProgress } from "@/components/focus/geometry";
 import { MoonBody, MoonLimb } from "@/components/focus/moon";
 import { SatelliteOrbit } from "@/components/focus/orbit";
 import { ProgressRing } from "@/components/progress-ring";
@@ -60,15 +60,22 @@ export function FocusInstrument({
   clockSeconds: string;
   celebrating: boolean;
 }) {
-  const moon = moonGeometry(ringSize, progress);
   /*
-   * How much the moon's atmosphere brightens as the session fills up.
+   * The moon reads the *cycle*, not the phase's own clock. During focus it
+   * follows the session; during a break it stays at the new-moon sliver, so
+   * finishing a session cannot refill it on the break's timer. `MoonBody`
+   * animates the hand-off from full to new.
+   */
+  const moonProgress = moonPhaseProgress(mode, progress);
+  const moon = moonGeometry(ringSize, moonProgress);
+  /*
+   * How much the moon's atmosphere brightens as the moon fills.
    *
    * Quantised to 5% steps on purpose: this is a *style*, so a new value is a
    * repaint, and `progress` changes on every 200ms tick — twenty-one steps over
    * a whole session is invisible but saves ~750 repaints of a full-ring layer.
    */
-  const haloGlow = 0.85 + (Math.round(progress * 20) / 20) * 0.3;
+  const haloGlow = 0.85 + (Math.round(moonProgress * 20) / 20) * 0.3;
 
   return (
     <motion.div
@@ -130,18 +137,13 @@ export function FocusInstrument({
       {/*
        * The moon, at the centre of its own dial — the composition the app's mark
        * is built from (docs/mark.md), at full size, and the second reading of the
-       * same number the arc carries: its lit *fraction* is the session's elapsed
-       * fraction, so it waxes from a hairline crescent through half to a full
-       * face across the session. It is a real terminator, not the edge of a
-       * second disc: a phase that only *slides* reads as a crescent up to half
-       * and then as a lens, because an equal disc's edge bows the wrong way.
+       * cycle: it waxes from a hairline crescent through half to a full face
+       * across a focus session, then wanes back to the sliver as the break takes
+       * over. It is a real terminator, not the edge of a second disc: a phase
+       * that only *slides* reads as a crescent up to half and then as a lens,
+       * because an equal disc's edge bows the wrong way.
        */}
-      <MoonBody
-        inset={moon.inset}
-        lit={moon.lit}
-        wash={moon.wash}
-        reduceMotion={reduceMotion}
-      />
+      <MoonBody inset={moon.inset} lit={moon.lit} reduceMotion={reduceMotion} />
 
       <MoonLimb inset={moon.inset} />
 

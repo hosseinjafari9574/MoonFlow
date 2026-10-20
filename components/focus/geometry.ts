@@ -1,3 +1,5 @@
+import type { TimerMode } from "@/lib/types";
+
 /**
  * The room's numbers — everything in Focus Mode that is arithmetic and nothing
  * else: where the moon's light comes from, the terminator its lit fraction
@@ -186,12 +188,15 @@ export interface MoonGeometry {
   clockPx: number;
   /** Lit fraction of the disc, floored so a fresh session keeps a sliver. */
   lit: number;
-  /**
-   * The wash's opacity. Quantised to 5% steps on purpose: this is a *style*, so
-   * a new value is a repaint, and `progress` changes on every 200ms tick —
-   * twenty-one steps over a whole session is invisible but saves ~750 repaints.
-   */
-  wash: number;
+}
+
+/**
+ * How far the moon is through its own cycle. Focus fills the disc; a break is
+ * the waning half, so it holds the new-moon sliver instead of filling again on
+ * the break's own clock. `MoonBody` eases the hand-off between the two.
+ */
+export function moonPhaseProgress(mode: TimerMode, progress: number): number {
+  return mode === "focus" ? progress : 0;
 }
 
 /**
@@ -229,13 +234,7 @@ export function moonGeometry(ringSize: number, progress: number): MoonGeometry {
    * third of a pixel on the largest moon the room draws.
    */
   const lit = Math.round((MOON_MIN_LIT + (1 - MOON_MIN_LIT) * progress) * 1000) / 1000;
-  return {
-    inset,
-    disc,
-    clockPx,
-    lit,
-    wash: 0.86 + (Math.round(lit * 20) / 20) * 0.14,
-  };
+  return { inset, disc, clockPx, lit };
 }
 
 export interface OrbitGeometry {
