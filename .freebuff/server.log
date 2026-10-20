@@ -1,0 +1,8 @@
+   ▲ Next.js 15.5.26
+   - Local:        http://localhost:3100
+   - Network:      http://172.19.0.1:3100
+
+ ✓ Starting...
+ ✓ Ready in 1328ms
+(node:13980) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)

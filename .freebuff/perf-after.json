@@ -1,0 +1,101 @@
+{
+  "note": "window off screen at -32000,-32000",
+  "controls": {
+    "calibration": {
+      "phase": "calibration",
+      "frames": 64,
+      "fps": 51.1,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 200.1,
+      "over20": 1,
+      "over33": 1,
+      "over50": 1,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "list": {
+      "phase": "list",
+      "frames": 57,
+      "fps": 56,
+      "medianMs": 16.7,
+      "p95Ms": 16.9,
+      "maxMs": 50.1,
+      "over20": 2,
+      "over33": 2,
+      "over50": 2,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "listPaused": {
+      "phase": "listPaused",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 19,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    }
+  },
+  "focus": {
+    "longTitleTaskCreated": true,
+    "entry": {
+      "phase": "entry",
+      "frames": 63,
+      "fps": 25.1,
+      "medianMs": 33.4,
+      "p95Ms": 116.6,
+      "maxMs": 166.5,
+      "over20": 47,
+      "over33": 45,
+      "over50": 9,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "idle": {
+      "phase": "idle",
+      "frames": 41,
+      "fps": 33.8,
+      "medianMs": 33.4,
+      "p95Ms": 34.7,
+      "maxMs": 34.8,
+      "over20": 31,
+      "over33": 29,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "exit": {
+      "phase": "exit",
+      "frames": 64,
+      "fps": 45,
+      "medianMs": 16.7,
+      "p95Ms": 49.6,
+      "maxMs": 216.8,
+      "over20": 5,
+      "over33": 5,
+      "over50": 3,
+      "longTasks": 1,
+      "longTaskTotalMs": 65,
+      "cls": 0
+    }
+  },
+  "bisect": null,
+  "render": {
+    "layoutCountTotal": 66,
+    "recalcStyleCountTotal": 142,
+    "layoutDurationMsTotal": 0.45,
+    "scriptDurationMsTotal": 0.81
+  },
+  "overlayRemovedAfterExit": true,
+  "hidden": false
+}

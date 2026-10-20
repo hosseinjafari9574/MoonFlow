@@ -1,0 +1,101 @@
+{
+  "note": "window off screen at -32000,-32000",
+  "controls": {
+    "calibration": {
+      "phase": "calibration",
+      "frames": 73,
+      "fps": 59.9,
+      "medianMs": 16.7,
+      "p95Ms": 19.1,
+      "maxMs": 23.7,
+      "over20": 1,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "list": {
+      "phase": "list",
+      "frames": 53,
+      "fps": 58.9,
+      "medianMs": 16.7,
+      "p95Ms": 17.5,
+      "maxMs": 33.2,
+      "over20": 1,
+      "over33": 1,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "listPaused": {
+      "phase": "listPaused",
+      "frames": 73,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 19.5,
+      "maxMs": 23,
+      "over20": 2,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    }
+  },
+  "focus": {
+    "longTitleTaskCreated": true,
+    "entry": {
+      "phase": "entry",
+      "frames": 84,
+      "fps": 33.4,
+      "medianMs": 16.8,
+      "p95Ms": 50.1,
+      "maxMs": 516.9,
+      "over20": 29,
+      "over33": 23,
+      "over50": 5,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "idle": {
+      "phase": "idle",
+      "frames": 62,
+      "fps": 50.1,
+      "medianMs": 16.7,
+      "p95Ms": 33.7,
+      "maxMs": 40.4,
+      "over20": 12,
+      "over33": 10,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0
+    },
+    "exit": {
+      "phase": "exit",
+      "frames": 65,
+      "fps": 45.2,
+      "medianMs": 16.7,
+      "p95Ms": 65.6,
+      "maxMs": 83,
+      "over20": 12,
+      "over33": 9,
+      "over50": 4,
+      "longTasks": 1,
+      "longTaskTotalMs": 54,
+      "cls": 0
+    }
+  },
+  "bisect": null,
+  "render": {
+    "layoutCountTotal": 69,
+    "recalcStyleCountTotal": 164,
+    "layoutDurationMsTotal": 0.37,
+    "scriptDurationMsTotal": 1.01
+  },
+  "overlayRemovedAfterExit": true,
+  "hidden": false
+}

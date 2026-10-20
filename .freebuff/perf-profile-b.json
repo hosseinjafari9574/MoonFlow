@@ -1,0 +1,274 @@
+{
+  "note": "window off screen at -32000,-32000",
+  "controls": {
+    "calibration": {
+      "phase": "calibration",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 25.2,
+      "over20": 1,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 8,
+      "slowFramesAtMs": []
+    },
+    "list": {
+      "phase": "list",
+      "frames": 71,
+      "fps": 58.3,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 49.9,
+      "over20": 1,
+      "over33": 1,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 7,
+      "slowFramesAtMs": [
+        74
+      ]
+    },
+    "listPaused": {
+      "phase": "listPaused",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.8,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 12,
+      "slowFramesAtMs": []
+    }
+  },
+  "focus": {
+    "longTitleTaskCreated": true,
+    "entry": {
+      "phase": "entryProfiled",
+      "frames": 119,
+      "fps": 45.4,
+      "medianMs": 16.7,
+      "p95Ms": 33.4,
+      "maxMs": 233.3,
+      "over20": 14,
+      "over33": 14,
+      "over50": 4,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 12,
+      "slowFramesAtMs": [
+        129,
+        379,
+        412,
+        512,
+        545,
+        612,
+        645,
+        695,
+        729,
+        762,
+        812,
+        895,
+        979,
+        1029
+      ]
+    },
+    "idle": {
+      "phase": "idle",
+      "frames": 72,
+      "fps": 60,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "maxMs": 16.8,
+      "over20": 0,
+      "over33": 0,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 8,
+      "slowFramesAtMs": []
+    },
+    "exit": {
+      "phase": "exit",
+      "frames": 73,
+      "fps": 52,
+      "medianMs": 16.7,
+      "p95Ms": 33.3,
+      "maxMs": 50,
+      "over20": 10,
+      "over33": 10,
+      "over50": 0,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "cls": 0,
+      "firstFrameAtMs": 16,
+      "slowFramesAtMs": [
+        49,
+        82,
+        132,
+        166,
+        199,
+        232,
+        266,
+        299,
+        349,
+        432
+      ]
+    }
+  },
+  "bisect": null,
+  "trace": null,
+  "traceExit": null,
+  "profile": {
+    "sampleCount": 4201,
+    "windowMs": 2899,
+    "topSelfTime": [
+      {
+        "name": "(idle)",
+        "url": "",
+        "line": -1,
+        "column": -1,
+        "selfMs": 1898.5,
+        "samples": 1
+      },
+      {
+        "name": "(program)",
+        "url": "",
+        "line": -1,
+        "column": -1,
+        "selfMs": 694.8,
+        "samples": 1
+      },
+      {
+        "name": "getBoundingClientRect",
+        "url": "",
+        "line": -1,
+        "column": -1,
+        "selfMs": 37.7,
+        "samples": 1
+      },
+      {
+        "name": "measureScroll",
+        "url": "http://localhost:3100/_next/static/chunks/307-ef9cc821b69b733a.js",
+        "line": 0,
+        "column": 150263,
+        "selfMs": 19.3,
+        "samples": 2,
+        "source": "{attachResizeListener:(e,t)=>rG(e,\"resize\",t),measureScroll:()=>({x:document.documentElement.scrollLeft||document.body?.scrollLeft||0,y:document.documentElement.scrollTop||document.body?.scrollTop||0}"
+      },
+      {
+        "name": "(garbage collector)",
+        "url": "",
+        "line": -1,
+        "column": -1,
+        "selfMs": 12.6,
+        "samples": 1
+      },
+      {
+        "name": "cc",
+        "url": "http://localhost:3100/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",
+        "line": 0,
+        "column": 163556,
+        "selfMs": 12.4,
+        "samples": 1,
+        "source": "a=M.p;try{M.p=8,cc(e,n,t,r)}finally{M.p=a,O.T=l}}function cc(e,n,t,r){if(cu){var l=cf(r);if(null===l)sn(e,n,r,cd,t),cx(e,r);else if(function(e,n,t,r,l){switch(n){case\"focusin\":return cg=cE(cg,e,n,t,r,"
+      },
+      {
+        "name": "e4",
+        "url": "http://localhost:3100/_next/static/chunks/app/page-a2a86fcacda3d5c8.js",
+        "line": 0,
+        "column": 47886,
+        "selfMs": 8.4,
+        "samples": 1,
+        "source": ")}var e2=a(3916);let e5=[\"focus\",\"short\",\"long\"];function e4(){var e,t;let a=ep(e=>e.preset),n=ep(e=>e.mode),l=ep(e=>e.running),d=ep(e=>e.remainingMs),u=ep(e=>e.sessions),m=ep(e=>e.taskId),p=ep(e=>e.e"
+      },
+      {
+        "name": "tL",
+        "url": "http://localhost:3100/_next/static/chunks/307-ef9cc821b69b733a.js",
+        "line": 0,
+        "column": 67600,
+        "selfMs": 7.7,
+        "samples": 2,
+        "source": "V=e=>\"string\"==typeof e&&\"svg\"===e.toLowerCase();function tL(e,{style:t,vars:n},r,i){let o,s=e.style;for(o in t)s[o]=t[o];for(o in i?.applyProjectionStyles(s,r),n)s.setProperty(o,n[o])}let tO=[\"border"
+      },
+      {
+        "name": "render",
+        "url": "http://localhost:3100/_next/static/chunks/307-ef9cc821b69b733a.js",
+        "line": 0,
+        "column": 58105,
+        "selfMs": 5.7,
+        "samples": 1,
+        "source": "ate=()=>this.notify(\"Update\",this.latestValues),this.render=()=>{this.current&&(this.triggerBuild(),this.renderInstance(this.current,this.renderState,this.props.style,this.projection))},this.renderSch"
+      },
+      {
+        "name": "applyProjectionStyles",
+        "url": "http://localhost:3100/_next/static/chunks/307-ef9cc821b69b733a.js",
+        "line": 0,
+        "column": 145021,
+        "selfMs": 4.9,
+        "samples": 2,
+        "source": "tionValues[t]=r[t]);e.scheduleRender()}applyProjectionStyles(e,t){if(!this.instance||this.isSVG)return;if(!this.isVisible){e.visibility=\"hidden\";return}let n=this.getTransformTemplate();if(this.needsR"
+      },
+      {
+        "name": "sc",
+        "url": "http://localhost:3100/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",
+        "line": 0,
+        "column": 142346,
+        "selfMs": 4.8,
+        "samples": 4,
+        "source": "su,\"\")}function ss(e,n){return n=si(n),si(e)===n}function sc(e,n,t,r,l,a){switch(t){case\"children\":\"string\"==typeof r?\"body\"===n||\"textarea\"===n&&\"\"===r||nc(e,r):(\"number\"==typeof r||\"bigint\"==typeof "
+      },
+      {
+        "name": "l9",
+        "url": "http://localhost:3100/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",
+        "line": 0,
+        "column": 50991,
+        "selfMs": 4.7,
+        "samples": 2,
+        "source": "e.length;t++)if(!tP(e[t],n[t]))return!1;return!0}function l9(e,n,t,r,l,a){return lY=a,lX=n,n.memoizedState=null,n.updateQueue=null,n.lanes=0,O.H=null===e||null===e.memoizedState?or:ol,l1=!1,a=t(r,l),l"
+      },
+      {
+        "name": "uv",
+        "url": "http://localhost:3100/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",
+        "line": 0,
+        "column": 98358,
+        "selfMs": 4.7,
+        "samples": 57,
+        "source": ".child;null!==n;)uv(n,e),n=n.sibling}var uy=null;function uv(e,n){var t=e.alternate,r=e.flags;switch(e.tag){case 0:case 11:case 14:case 15:ug(n,e),ub(e),4&r&&(o2(3,e,e.return),o1(3,e),o2(5,e,e.return)"
+      },
+      {
+        "name": "tick",
+        "url": "http://localhost:3100/_next/static/chunks/307-ef9cc821b69b733a.js",
+        "line": 0,
+        "column": 88871,
+        "selfMs": 4.3,
+        "samples": 2,
+        "source": "dTime?this.currentTime=this.holdTime:this.currentTime=t}tick(e,t=!1){let n,{generator:r,totalDuration:i,mixKeyframes:o,mirroredGenerator:s,resolvedDuration:a,calculatedDuration:u}=this;if(null===this."
+      }
+    ]
+  },
+  "render": {
+    "note": "cumulative since renderer start; durations in seconds",
+    "layoutCountTotal": 95,
+    "recalcStyleCountTotal": 237,
+    "layoutDurationSecTotal": 0.24,
+    "scriptDurationSecTotal": 0.69,
+    "layoutDurationMsTotal": 238.03,
+    "scriptDurationMsTotal": 691.37
+  },
+  "overlayRemovedAfterExit": true,
+  "hidden": false
+}
