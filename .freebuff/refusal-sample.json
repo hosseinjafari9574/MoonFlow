@@ -1,9 +1,0 @@
-{
-  "valid": false,
-  "retry": true,
-  "where": "perf-focus.mjs",
-  "rule": "every control holds 60fps: no frame > 33ms and p95 ≤ 17ms",
-  "failedControls": ["calibration: 1 frame(s) > 33ms (max 33ms)"],
-  "note": "the controls are not clean, so this is not a measurement — the machine is the variable, not the app.",
-  "ghostProbe": null
-}
