@@ -643,6 +643,18 @@ language:
   an equal disc's edge bows the wrong way there, so the moon becomes a lens. The
   clip replaced it; `verify:visuals` reads the terminator's waist, side and angle
   at both a crescent and a gibbous, and samples the pixels around its waist.
+  **The cycle is one motion, and a break runs it backwards.** `moonPhaseProgress`
+  reads a break's progress as `1 − progress`, so the break drains the disc from
+  the full face the focus left behind down to the dark end, and the break's lit
+  half is point-reflected (`MoonBody`'s `flip`) so the darkness enters from the
+  same left side the light entered from. Both hand-offs are therefore
+  continuous: focus `1` and break `0` are both full, break `1` and the next
+  focus `0` are both dark, and no hand-off has a jump to cover. A single phase
+  cannot see this — the same 40% is a left crescent in focus and a right
+  crescent in a break — so `verify:visuals` drives the whole focus → break →
+  focus round trip and reads the terminator's turn and the pixels on either
+  side of the disc (`cycle/*`). A break that drained from the opposite limb
+  passes every single-phase check and fails there.
 - **The cycle strip is four static rasters.** Four 14px moon phases (16px for one
   pass in between — see "The alignment pass" below). A phase is
   not a bite out of a disc: its terminator is a *great circle on the sphere*, so

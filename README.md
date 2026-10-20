@@ -225,7 +225,12 @@ what the source implies — the tick angles and lit count, where the arc stops,
 `MOON_LIGHT`'s night axis and travel, `--moon-dark`, and each glyph's lit area.
 It starts a dev server itself, exits non-zero and lists every measurement that
 drifted, so a quarter-turn of the graduations or a token moved in one place
-fails the command rather than the design review. The `.freebuff/*` probes named
+fails the command rather than the design review. It also drives the whole
+focus → break → focus round trip, because the moon's *direction* cannot be
+read off a single phase: focus fills the disc from the light's side and the
+break has to drain it from that same side, so the two are point reflections of
+one another. A break that darkened from the opposite limb passes every
+single-phase check and fails there. The `.freebuff/*` probes named
 above are how those numbers were chosen; this is the one that stays.
 
 ## Data & persistence

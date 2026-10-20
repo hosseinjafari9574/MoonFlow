@@ -10,8 +10,13 @@ import type { TimerPreset } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * The top bar: the app's own instrument, the rhythm the session is running on,
+ * The top bar: the room's name and mark, the rhythm the session is running on,
  * and the way out.
+ *
+ * "Focus Mode" is written out beside the mark at every width. The preset chip
+ * is the first thing to leave a phone — it is 36px of well and a sentence — but
+ * the room still has to say where the user is, so the mark alone is not enough
+ * there. The title stays where the chip steps out, rather than hiding with it.
  *
  * Both pieces here are the app's, not the room's. The chip is the same
  * `.inset` well the header puts its sound switch in — same radius, same fill,
@@ -45,6 +50,10 @@ export function FocusTopBar({
     <div className="flex flex-none items-center justify-between gap-3">
       <span className="flex min-w-0 items-center gap-3">
         <MoonFlowMark className="size-5 shrink-0 text-ivory/60" />
+        {/* The room's title, in the top bar's own ivory and scale. */}
+        <span className="truncate text-body font-medium tracking-[-0.005em] text-ivory/85">
+          Focus Mode
+        </span>
         <span
           className="inset hidden h-9 min-w-0 items-center gap-2 rounded-xl px-3 sm:inline-flex"
           title={`${presetMeta.label} preset — ${presetBlurb(presetMeta)}`}

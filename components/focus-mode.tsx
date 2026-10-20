@@ -163,15 +163,38 @@ export function FocusMode() {
     if (timer.taskId !== focusTaskId) timer.setTaskId(focusTaskId);
   }, [focusTaskId]);
 
-  /* Lock background scroll and manage focus for screen readers. */
+  /*
+   * Lock background scroll and manage focus for screen readers.
+   *
+   * Both the root and the body, not just the body. `overflow: hidden` on
+   * <body> alone is enough in Chromium, but not in every engine — Safari on a
+   * phone ignores it once the page is taller than the viewport, and this page
+   * is routinely taller there. Locking <html> as well removes the scrollport
+   * and the scrollbar, and `overscroll-behavior: none` keeps a wheel or a swipe
+   * from chaining to the page behind the sheet. Values are restored exactly,
+   * not cleared, because the page may have been locked by a dialog first.
+   */
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
+    const root = document.documentElement;
+    const body = document.body;
+    const previous = {
+      rootOverflow: root.style.overflow,
+      rootOverscroll: root.style.overscrollBehavior,
+      bodyOverflow: body.style.overflow,
+      bodyOverscroll: body.style.overscrollBehavior,
+    };
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = "hidden";
+    root.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
     containerRef.current?.focus();
     return () => {
-      document.body.style.overflow = previousOverflow;
+      root.style.overflow = previous.rootOverflow;
+      root.style.overscrollBehavior = previous.rootOverscroll;
+      body.style.overflow = previous.bodyOverflow;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
       previouslyFocused?.focus?.();
     };
   }, [open]);

@@ -39,14 +39,24 @@
  *           `--moon-glyph`, hue-less; and the banked moons must be amber where
  *           the pending ones are grey.
  *
+ *   cycle   the whole focus → break → focus round trip, driven through the
+ *           room's own controls with the clock moved under the store. The moon
+ *           has to fill from the light's side and *drain from that same side*,
+ *           so the break's terminator is the focus's turned a half-turn: the
+ *           two phases are point reflections of one another, and the pixels on
+ *           either side of the disc say which way the light moved. A break
+ *           that darkened from the opposite limb passes every single-phase
+ *           check and fails here.
+ *
  * Usage:
  *   npm run verify:visuals                     # starts `next dev` itself
  *   APP=http://127.0.0.1:3100 npm run verify:visuals
  *   node scripts/verify-visuals.mjs [url]      # an already-running app
  *
- * Artifacts (three screenshots and the report) are written to
- * `.freebuff/verify-visuals/`, which is ignored. Exit code 1 means at least one
- * measurement drifted; every check is printed either way, with the numbers.
+ * Artifacts (the screenshots each subject was measured from, and the report)
+ * are written to `.freebuff/verify-visuals/`, which is ignored. Exit code 1
+ * means at least one measurement drifted; every check is printed either way,
+ * with the numbers.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -1096,6 +1106,247 @@ async function main() {
       5,
       " luma",
     );
+
+    /*
+     * ------------------------------------------------------ the full cycle
+     *
+     * The cycle is the moon's animation, and its two directions have to be one
+     * motion: focus fills the disc from the light's side, and the break drains
+     * it from that same side — not from the opposite limb. Sampling one focus
+     * phase cannot see that, and a fresh page load cannot either: opening Focus
+     * Mode always starts a focus session, so a break is only ever on screen in a
+     * room that was already open. So this drives the room's own Reset and Start
+     * controls and moves the clock the store reads, taking the cycle through
+     * dark → waxing → full → waning → dark and back to focus.
+     *
+     * The break is where the hand-off happens. At 40% lit a focus moon is a left
+     * crescent; the same phase in a break must be its point reflection — a right
+     * crescent with the darkness on the left — or the darkening started from the
+     * wrong limb. That is the regression this check exists for.
+     */
+    console.log(`\ncycle — focus → break → focus\n`);
+
+    const clickRoom = async (label) => {
+      const clicked = await session.eval(`(() => {
+        const button = [...document.querySelectorAll(${JSON.stringify(DIALOG)} + " button")]
+          .find((element) => element.getAttribute("aria-label") === ${JSON.stringify(label)});
+        if (!button) return false;
+        button.click();
+        return true;
+      })()`);
+      if (!clicked) throw new Error(`the Focus Mode room has no “${label}” button`);
+      await sleep(350);
+    };
+
+    /*
+     * The store's clock is `endsAt - Date.now()`, so the cycle can be moved
+     * without waiting: shift the page's `Date.now` and let the engine's own
+     * 200ms tick read the new time. The shift is restored between phases, so
+     * every `start()` arms from real time.
+     */
+    const moveClock = async (ms) => {
+      await session.eval(`(() => {
+        window.__verifyRealNow ||= Date.now;
+        Date.now = () => window.__verifyRealNow() + ${ms};
+        return true;
+      })()`);
+      /* One tick (200ms) is all the engine needs to see the jump. */
+      await sleep(450);
+    };
+
+    const readCycle = async (name) => {
+      const roomNow = await inPage(session, readFocusRoom);
+      if (!roomNow?.moon.box) throw new Error(`the cycle's ${name} moon did not render`);
+      /* A paint is always a frame behind the DOM read; take the shot after two. */
+      await session.eval(
+        "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))",
+      );
+      const shot = await capture(`${name}.png`, roomNow.moon.box, 2);
+      const pixels = await inPage(session, measurePixels, {
+        kind: "moon",
+        shot,
+        light: source.light,
+      });
+      return { phase: roomNow.moon.phase, dial: roomNow.dial, pixels };
+    };
+
+    /*
+     * The lit fraction the path encodes. The waist alone is symmetric about
+     * half, so the sweep flag says which side of it the light is on. At zero the
+     * terminator is the diameter and its ellipse is cut out of the lit half; at
+     * full it is let out to the whole disc.
+     */
+    const litOf = (phase) => (phase.sweep === 1 ? 0.5 - phase.rx : 0.5 + phase.rx);
+
+    /* 1. The dark face the cycle opens on. */
+    await clickRoom("Reset current session");
+    await sleep(450);
+    const focusStart = await readCycle("cycle-focus-start");
+    near("cycle/focus-start-lit", litOf(focusStart.phase), 0, 0.01);
+    same("cycle/focus-start-side", focusStart.phase.sweep, 1);
+    near("cycle/focus-start-angle", focusStart.phase.angle, axisAngle, 0.05, "°");
+    record(
+      "cycle/focus-start-dark",
+      focusStart.pixels.litSide <= 30 && focusStart.pixels.nightSide <= 30,
+      `lit side ${fmt(focusStart.pixels.litSide, 1)} luma, night side ${fmt(focusStart.pixels.nightSide, 1)}`,
+    );
+
+    /* 2. Ten minutes in: the light has entered from the left. */
+    await clickRoom("Start timer");
+    await moveClock(10 * 60_000);
+    const waxing = await readCycle("cycle-focus-waxing");
+    const waxingLit = waxing.dial.progress;
+    near("cycle/focus-waxing-lit", litOf(waxing.phase), waxingLit, 0.01);
+    near(
+      "cycle/focus-waxing-waist",
+      waxing.phase.rx,
+      Math.abs(2 * waxingLit - 1) * 0.5,
+      0.005,
+    );
+    same("cycle/focus-waxing-side", waxing.phase.sweep, waxingLit >= 0.5 ? 0 : 1);
+    near("cycle/focus-waxing-angle", waxing.phase.angle, axisAngle, 0.05, "°");
+    /*
+     * The direction is a before/after, not a single frame's two points: the
+     * side the light comes from has to gain and the far side has to hold. A
+     * phase that filled from the right would be the mirror of this, and a disc
+     * that had not changed at all would move neither.
+     */
+    const waxingNearGain = waxing.pixels.litSide - focusStart.pixels.litSide;
+    const waxingFarDrift = Math.abs(waxing.pixels.nightSide - focusStart.pixels.nightSide);
+    record(
+      "cycle/focus-waxing-light-from-the-left",
+      waxingNearGain >= 20 && waxingFarDrift <= 6,
+      `lit side ${fmt(focusStart.pixels.litSide, 1)} → ${fmt(waxing.pixels.litSide, 1)} (gain ${fmt(waxingNearGain, 1)}), ` +
+        `night side ${fmt(focusStart.pixels.nightSide, 1)} → ${fmt(waxing.pixels.nightSide, 1)} (drift ${fmt(waxingFarDrift, 1)})`,
+    );
+
+    /*
+     * 3. The hand-off the clock makes on its own: focus reaches zero, the break
+     * opens on the full face and waits, and the moon turns its path there. This
+     * is the real cycle's turn; a skip from a half-lit focus reaches the same
+     * endpoint, but only after its own short tween has carried it there.
+     */
+    await moveClock(26 * 60_000);
+    await sleep(800);
+    const breakStart = await readCycle("cycle-break-start");
+    near("cycle/break-start-lit", litOf(breakStart.phase), 1, 0.01);
+    same("cycle/break-start-side", breakStart.phase.sweep, 0);
+    near("cycle/break-start-angle", breakStart.phase.angle, axisAngle + 180, 0.05, "°");
+    record(
+      "cycle/break-start-full",
+      breakStart.pixels.litSide >= 12 && breakStart.pixels.nightSide >= 12,
+      `lit side ${fmt(breakStart.pixels.litSide, 1)} luma, night side ${fmt(breakStart.pixels.nightSide, 1)} (both lit)`,
+    );
+
+    /*
+     * 4. The same 40% phase, drained. Focus at 40% is a left crescent; its
+     * point reflection must be a right crescent, so the left side is the dark
+     * one. Both the path's rotation and the pixels have to say so.
+     *
+     * The clock is put back to real time first: the break's `start()` arms its
+     * deadline from whatever `Date.now` says, so starting it while the page is
+     * still 26 minutes ahead would arm a deadline the next, smaller shift could
+     * not reach.
+     */
+    await moveClock(0);
+    await clickRoom("Start timer");
+    await moveClock(3 * 60_000);
+    const waning = await readCycle("cycle-break-waning");
+    const waningLit = 1 - waning.dial.progress;
+    near("cycle/break-waning-lit", litOf(waning.phase), waningLit, 0.01);
+    near(
+      "cycle/break-waning-waist",
+      waning.phase.rx,
+      Math.abs(2 * waningLit - 1) * 0.5,
+      0.005,
+    );
+    same("cycle/break-waning-side", waning.phase.sweep, waningLit >= 0.5 ? 0 : 1);
+    near("cycle/break-waning-angle", waning.phase.angle, axisAngle + 180, 0.05, "°");
+    const waningNearDrop = breakStart.pixels.litSide - waning.pixels.litSide;
+    const waningFarDrift = Math.abs(breakStart.pixels.nightSide - waning.pixels.nightSide);
+    record(
+      "cycle/break-waning-dark-from-the-left",
+      waningNearDrop >= 20 && waningFarDrift <= 8,
+      `left ${fmt(breakStart.pixels.litSide, 1)} → ${fmt(waning.pixels.litSide, 1)} (drop ${fmt(waningNearDrop, 1)}), ` +
+        `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(waning.pixels.nightSide, 1)} (held ${fmt(waningFarDrift, 1)})`,
+    );
+    near("cycle/same-phase-mirrored-waist", waning.phase.rx, waxing.phase.rx, 0.01);
+    near(
+      "cycle/darkening-turns-the-path",
+      angular(waning.phase.angle, waxing.phase.angle),
+      180,
+      0.1,
+      "°",
+    );
+
+    /*
+     * 5. The break's dark end, still on the turned path. Leave fifteen seconds,
+     * not five: the room takes a moment to read and capture, and a clock that
+     * reaches zero here would already be the next focus.
+     */
+    await moveClock(285_000);
+    await sleep(800);
+    const breakEnd = await readCycle("cycle-break-end");
+    const endLit = 1 - breakEnd.dial.progress;
+    near("cycle/break-end-lit", litOf(breakEnd.phase), endLit, 0.01);
+    same("cycle/break-end-side", breakEnd.phase.sweep, endLit >= 0.5 ? 0 : 1);
+    near("cycle/break-end-angle", breakEnd.phase.angle, axisAngle + 180, 0.05, "°");
+    const endNearDrop = breakStart.pixels.litSide - breakEnd.pixels.litSide;
+    const endFarDrop = breakStart.pixels.nightSide - breakEnd.pixels.nightSide;
+    record(
+      "cycle/break-end-dark",
+      endNearDrop >= 20 &&
+        endFarDrop >= 4 &&
+        breakEnd.pixels.litSide <= 36 &&
+        breakEnd.pixels.nightSide <= 36,
+      `left ${fmt(breakStart.pixels.litSide, 1)} → ${fmt(breakEnd.pixels.litSide, 1)} (drop ${fmt(endNearDrop, 1)}), ` +
+        `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(breakEnd.pixels.nightSide, 1)} (drop ${fmt(endFarDrop, 1)})`,
+    );
+
+    /* 6. Zero completes the break on its own and arms the next dark focus. */
+    await moveClock(5.1 * 60_000);
+    await sleep(800);
+    const returned = await readCycle("cycle-focus-return");
+    near("cycle/focus-return-lit", litOf(returned.phase), 0, 0.01);
+    same("cycle/focus-return-side", returned.phase.sweep, 1);
+    near("cycle/focus-return-angle", returned.phase.angle, axisAngle, 0.05, "°");
+    record(
+      "cycle/focus-return-dark",
+      returned.pixels.litSide <= 30 && returned.pixels.nightSide <= 30,
+      `lit side ${fmt(returned.pixels.litSide, 1)} luma, night side ${fmt(returned.pixels.nightSide, 1)}`,
+    );
+    await moveClock(0);
+
+    /*
+     * A skip into a break that starts at once is the hand-off's hardest case:
+     * the break's first ticks are already pulling the phase down while the moon
+     * is still arriving at full. The orientation has to turn there anyway;
+     * waiting for `shownLit` to touch 1 never happens, and the break then drains
+     * from the focus limb. Run it with motion on, so the hand-off tween is the
+     * real one, and assert the turned path after it settles.
+     */
+    await session.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+    });
+    await clickRoom("Start timer");
+    await moveClock(10 * 60_000);
+    await sleep(1300);
+    await clickRoom("Skip to next session");
+    await moveClock(0);
+    await clickRoom("Start timer");
+    await moveClock(3 * 60_000);
+    await sleep(2500);
+    const skipped = await readCycle("cycle-skip-break");
+    const skippedLit = 1 - skipped.dial.progress;
+    near("cycle-skip/break-lit", litOf(skipped.phase), skippedLit, 0.05);
+    same("cycle-skip/break-side", skipped.phase.sweep, skippedLit >= 0.5 ? 0 : 1);
+    near("cycle-skip/break-angle", skipped.phase.angle, axisAngle + 180, 0.05, "°");
+    await moveClock(0);
+    await session.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+    });
+
+    report.cycle = { focusStart, waxing, breakStart, waning, breakEnd, returned, skipped };
 
     report.room = room;
     report.gibbous = gibbous.moon;

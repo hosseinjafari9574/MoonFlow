@@ -19,12 +19,13 @@ import { cn } from "@/lib/utils";
  * They are the same object lit from the same side and, now, the same phase: the
  * terminator is a great circle on the sphere in both. The instrument clips its
  * light layer to the lit region (quantised, so a session's 7500 ticks cost about
- * a thousand repaints of one disc rather than 7500 — docs/motion-budget.md), and
- * eases the full-to-new hand-off when focus becomes a break. The strip's glyphs
- * never animate, so they can draw the same shape as static rasters. The old
- * instrument slid a second disc of the moon's own dark across this one, which
- * draws a crescent but not a gibbous: past half an equal disc's edge bows the
- * wrong way and the moon becomes a lens (see `phaseGeometry`).
+ * a thousand repaints of one disc rather than 7500 — docs/motion-budget.md). The
+ * cycle is the animation: focus advances the clip, a break runs the same clip
+ * backwards from the full face. The strip's glyphs never animate, so they can
+ * draw the same shape as static rasters. The old instrument slid a second disc
+ * of the moon's own dark across this one, which draws a crescent but not a
+ * gibbous: past half an equal disc's edge bows the wrong way and the moon
+ * becomes a lens (see `phaseGeometry`).
  */
 
 /**
@@ -57,10 +58,13 @@ function litPath(lit: number): string {
   return `M 0.5 0 A 0.5 0.5 0 0 0 0.5 1 ${terminator} Z`;
 }
 
-/** How long the full moon takes to hand back to the new-moon sliver. */
-const MOON_WANE_MS = 1400;
+/** A jump larger than this is a hand-off, not the clock's own slow progress. */
+const MOON_PHASE_JUMP = 0.05;
 
-/** Slow at both ends, so the hand-off reads as a deliberate wane. */
+/** How long Skip takes to carry the moon to its full or dark end. */
+const MOON_PHASE_TWEEN_MS = 1100;
+
+/** Slow at both ends, so a Skip reads as a deliberate arrival. */
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
@@ -70,42 +74,54 @@ function easeInOutCubic(t: number): number {
  *
  * It is a *dark* sphere lit from the left, below the middle (see `MOON_LIGHT`).
  * The light is one gradient on the disc, clipped to the exact lit region; the
- * unlit rest is the moon's own dark. The target path is quantized to a
- * thousandth of the disc, so a 200ms focus tick changes it only about once a
- * second — a repaint of one disc, not of the ring, and far less often than the
- * 7500 ticks a session would otherwise ask for (docs/motion-budget.md).
+ * unlit rest is the moon's own dark. The path is quantized to a thousandth of
+ * the disc, so a 200ms tick changes it only about once a second — a repaint of
+ * one disc, not of the ring, and far less often than the 7500 ticks a session
+ * would otherwise ask for (docs/motion-budget.md).
  *
- * The one exception is the end of focus. The full moon has to return to new for
- * the break, and that hand-off is eased over `MOON_WANE_MS`: about eighty
- * frames of one clipped layer, then still for the whole break. A break's own
- * clock never moves the target, so the moon cannot refill before the next focus
- * session starts it again.
+ * The cycle is the animation. `moonPhaseProgress` fills this fraction during a
+ * focus session and runs it backwards during a break, so the full face at the
+ * end of focus is exactly where the break starts and the dark face is exactly
+ * where the next focus starts. The break's lit half is point-reflected
+ * (`flip`), which makes the darkness enter from the left — the same side the
+ * focus light entered from — while the terminator stays on the same line. The
+ * ordinary cycle follows the clock's quantised steps directly; a **skip** is
+ * the one jump the clock does not explain, so that hand-off is eased to its
+ * full or dark end along the same path.
  */
 export function MoonBody({
   inset,
   lit,
+  flip,
   reduceMotion,
 }: {
   /** The disc's inset inside the instrument box. */
   inset: number;
   /** The phase's lit fraction, quantised in `moonGeometry`. */
   lit: number;
+  /** Which side the lit region occupies: left in focus, right in a break. */
+  flip: boolean;
   reduceMotion: boolean;
 }) {
   const clipId = `moon-lit-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [shownLit, setShownLit] = useState(lit);
+  const [shownFlip, setShownFlip] = useState(flip);
   const shownRef = useRef(lit);
   const frameRef = useRef<number | null>(null);
+  /** A phase hand-off owns the phase until the moon has reached its end. */
+  const handoffRef = useRef(false);
 
   /*
-   * The focus clock only ever raises the target, so follow it directly: there is
-   * nothing to animate while the moon is filling and quantising it already keeps
-   * the repaint rate down. A *drop* is the candle being snuffed — the end of
-   * focus, a reset, a skip — and that is the one transition worth easing.
+   * A change smaller than this is the clock's own slow progress (a break moves
+   * it by about 0.003 a second); a change larger than it is a hand-off — most
+   * often Skip, which arms the next phase at full or dark in one store update.
+   * Only the latter gets a tween; the cycle must not lag behind its clock.
    */
   useEffect(() => {
+    if (handoffRef.current) return;
     const from = shownRef.current;
-    if (reduceMotion || lit >= from) {
+    const delta = Math.abs(lit - from);
+    if (reduceMotion || delta < MOON_PHASE_JUMP) {
       shownRef.current = lit;
       setShownLit(lit);
       return;
@@ -114,7 +130,7 @@ export function MoonBody({
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     const start = performance.now();
     const frame = (now: number) => {
-      const t = Math.min(1, (now - start) / MOON_WANE_MS);
+      const t = Math.min(1, (now - start) / MOON_PHASE_TWEEN_MS);
       const value = from + (lit - from) * easeInOutCubic(t);
       shownRef.current = value;
       setShownLit(value);
@@ -127,12 +143,57 @@ export function MoonBody({
     };
   }, [lit, reduceMotion]);
 
+  /*
+   * The orientation belongs to the phase, so the hand-off carries the moon to
+   * the endpoint the new phase starts from even if the new clock has already
+   * moved. It used to wait for `shownLit` to touch 1/0, but a break started
+   * before the Skip tween had finished retargeted the tween every tick and never
+   * reached the endpoint: the break then drained from the focus limb, the exact
+   * opposite of the direction just lit. A full or dark face hides the turn, so
+   * the hand-off finishes the arrival, flips, and lets the next tick follow the
+   * new clock.
+   */
+  useEffect(() => {
+    if (shownFlip === flip) return;
+    const target = flip ? 1 : 0;
+    const from = shownRef.current;
+    if (reduceMotion || Math.abs(target - from) < 0.0001) {
+      shownRef.current = target;
+      setShownLit(target);
+      setShownFlip(flip);
+      return;
+    }
+
+    handoffRef.current = true;
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    const start = performance.now();
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - start) / MOON_PHASE_TWEEN_MS);
+      const value = from + (target - from) * easeInOutCubic(t);
+      shownRef.current = value;
+      setShownLit(value);
+      if (t < 1) {
+        frameRef.current = requestAnimationFrame(frame);
+      } else {
+        frameRef.current = null;
+        handoffRef.current = false;
+        setShownFlip(flip);
+      }
+    };
+    frameRef.current = requestAnimationFrame(frame);
+    return () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+      handoffRef.current = false;
+    };
+  }, [flip, shownFlip, reduceMotion]);
+
   const { angle } = phaseGeometry(shownLit);
   /*
-   * The wash belongs to the phase too: it dims as the moon wanes, so the new
-   * moon at the start of a break is quieter than the full face that preceded it.
+   * The wash belongs to the phase too: it dims as the moon drains, so the dark
+   * face at the end of a break is quieter than the full face that started it.
    * It is quantised in the same 5% steps the previous value used, and the 240ms
-   * opacity transition smooths the steps while the clip path is already moving.
+   * opacity transition smooths the steps while the clip path is moving.
    */
   const wash = 0.86 + (Math.round(shownLit * 20) / 20) * 0.14;
   return (
@@ -150,7 +211,7 @@ export function MoonBody({
           <clipPath id={clipId} clipPathUnits="objectBoundingBox">
             <path
               d={litPath(shownLit)}
-              transform={`rotate(${angle} 0.5 0.5)`}
+              transform={`rotate(${angle + (shownFlip ? 180 : 0)} 0.5 0.5)`}
             />
           </clipPath>
         </defs>

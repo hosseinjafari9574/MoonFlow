@@ -62,9 +62,9 @@ export function FocusInstrument({
 }) {
   /*
    * The moon reads the *cycle*, not the phase's own clock. During focus it
-   * follows the session; during a break it stays at the new-moon sliver, so
-   * finishing a session cannot refill it on the break's timer. `MoonBody`
-   * animates the hand-off from full to new.
+   * fills with the session; during a break it drains from the full face the
+   * focus left behind, back to dark. The break's progress is read backwards, so
+   * neither hand-off jumps.
    */
   const moonProgress = moonPhaseProgress(mode, progress);
   const moon = moonGeometry(ringSize, moonProgress);
@@ -120,7 +120,7 @@ export function FocusInstrument({
         animate={
           running && !reduceMotion
             ? { opacity: [0.45, 0.95] }
-            : { opacity: 0.4 + progress * 0.3 }
+            : { opacity: 0.4 + moonProgress * 0.3 }
         }
         transition={
           running && !reduceMotion
@@ -137,13 +137,20 @@ export function FocusInstrument({
       {/*
        * The moon, at the centre of its own dial — the composition the app's mark
        * is built from (docs/mark.md), at full size, and the second reading of the
-       * cycle: it waxes from a hairline crescent through half to a full face
-       * across a focus session, then wanes back to the sliver as the break takes
-       * over. It is a real terminator, not the edge of a second disc: a phase
-       * that only *slides* reads as a crescent up to half and then as a lens,
-       * because an equal disc's edge bows the wrong way.
+       * cycle: it waxes from dark through half to a full face across a focus
+       * session, then wanes back to dark as the break runs. The break's lit half
+       * is point-reflected, so the darkness enters from the same left side the
+       * focus light entered from, not from the opposite limb. It is a real
+       * terminator, not the edge of a second disc: a phase that only *slides*
+       * reads as a crescent up to half and then as a lens, because an equal
+       * disc's edge bows the wrong way.
        */}
-      <MoonBody inset={moon.inset} lit={moon.lit} reduceMotion={reduceMotion} />
+      <MoonBody
+        inset={moon.inset}
+        lit={moon.lit}
+        flip={mode !== "focus"}
+        reduceMotion={reduceMotion}
+      />
 
       <MoonLimb inset={moon.inset} />
 

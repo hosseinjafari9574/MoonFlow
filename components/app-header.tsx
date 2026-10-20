@@ -60,7 +60,18 @@ export function AppHeader() {
       )}
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-5">
-        <div className="flex items-center gap-3">
+        {/*
+         * A plain anchor, not `next/link`: the mark and name are the app's
+         * front door, and clicking them should rebuild the page from storage —
+         * a client-side navigation would keep every in-memory store exactly as
+         * it was and do nothing visible.
+         */}
+        <a
+          href="/"
+          aria-label={`${APP_NAME} — reload the app`}
+          title="Reload MoonFlow"
+          className="flex items-center gap-3 rounded-xl transition-opacity duration-200 hover:opacity-90 focus-visible:outline-offset-4"
+        >
           <span
             aria-hidden
             className="relative grid size-10 place-items-center rounded-xl text-ivory shadow-[0_0_28px_-10px_rgba(75,98,255,0.85)]"
@@ -73,15 +84,15 @@ export function AppHeader() {
           >
             <MoonFlowMark />
           </span>
-          <div className="leading-tight">
-            <p className="text-[15px] font-semibold tracking-[-0.01em]">
+          <span className="leading-tight">
+            <span className="block text-[15px] font-semibold tracking-[-0.01em]">
               {APP_NAME}
-            </p>
-            <p className="hidden text-micro font-medium uppercase text-muted-foreground sm:block">
+            </span>
+            <span className="hidden text-micro font-medium uppercase text-muted-foreground sm:block">
               {formatDateHeading()}
-            </p>
-          </div>
-        </div>
+            </span>
+          </span>
+        </a>
 
         <div className="flex items-center gap-2.5">
           {/* The same 36px height as the outline button beside it: two

@@ -97,10 +97,10 @@ export const MOON_DARK = "var(--moon-dark)";
 export const MOON_GLYPH = "var(--moon-glyph)";
 
 /**
- * The sliver of moon that is lit even on a brand-new session. A moon that goes
- * out entirely reads as the room's centrepiece having been switched off.
+ * The dark end of the cycle: no visible lit shape at all. The disc's own dark
+ * body and the limb above it keep the moon from reading as a hole in the room.
  */
-export const MOON_MIN_LIT = 0.06;
+export const MOON_MIN_LIT = 0;
 
 /** The phase glyph's disc, in its own 24-unit canvas. */
 export const PHASE_RADIUS = 10;
@@ -186,17 +186,19 @@ export interface MoonGeometry {
   disc: number;
   /** The clock's type size, in px: a fifth of the disc it is read inside. */
   clockPx: number;
-  /** Lit fraction of the disc, floored so a fresh session keeps a sliver. */
+  /** Lit fraction of the disc; `0` at the dark end of the cycle. */
   lit: number;
 }
 
 /**
  * How far the moon is through its own cycle. Focus fills the disc; a break is
- * the waning half, so it holds the new-moon sliver instead of filling again on
- * the break's own clock. `MoonBody` eases the hand-off between the two.
+ * the same cycle run backwards, from the full face the session left to the dark
+ * end. Reading the break's progress as `1 - progress` makes both hand-offs
+ * continuous: focus `1` and break `0` are both full, and break `1` and the next
+ * focus `0` are both dark.
  */
 export function moonPhaseProgress(mode: TimerMode, progress: number): number {
-  return mode === "focus" ? progress : 0;
+  return mode === "focus" ? progress : 1 - progress;
 }
 
 /**
