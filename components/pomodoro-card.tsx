@@ -95,6 +95,14 @@ export function PomodoroCard() {
   const tone = TONES[toneKeyForMode(mode)];
   const toneKey = toneKeyForMode(mode);
   const isFocus = mode === "focus";
+  /*
+   * How many of the cycle's dots are lit: the session the header names, which is
+   * the next one until it is banked. Counting only banked sessions left the dots
+   * a step behind the number beside them — "Session 1 of 4" over four empty
+   * dots — for the whole period a user is actually working. The header's own
+   * arithmetic is the one rule, so the two can never disagree.
+   */
+  const litSessions = Math.min(sessions + 1, longBreakAfter);
 
   useEffect(() => {
     const key = `${preset}:${mode}`;
@@ -206,14 +214,14 @@ export function PomodoroCard() {
                 animate={{
                   scale: index < sessions ? [1, 1.4, 1] : 1,
                   backgroundColor:
-                    index < sessions
+                    index < litSessions
                       ? "rgba(233,184,114,1)"
                       : "rgba(244,241,234,0.14)",
                 }}
                 transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
                 className={cn(
                   "size-2 rounded-full",
-                  index < sessions &&
+                  index < litSessions &&
                     "shadow-[0_0_10px_rgba(233,184,114,0.55)]",
                 )}
               />

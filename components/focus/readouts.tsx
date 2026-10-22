@@ -26,9 +26,16 @@ import { cn } from "@/lib/utils";
  * A cycle's sessions as moon phases.
  *
  * Even quarters of a disc — crescent, half, gibbous, full — so the strip reads
- * as the cycle's own month. One banked session is one phase further through it,
- * and the full moon at the end of the row is the one that buys the long break.
- * Four identical dots said how many; four phases say how far.
+ * as the cycle's own month, and the full moon at the end of the row is the one
+ * that buys the long break. Four identical dots said how many; four phases say
+ * how far.
+ *
+ * The strip stands at the session the eyebrow names, not one behind it: during
+ * the first focus period the crescent is already lit, and during the break
+ * before session 2 the half moon is. Counting only banked sessions left the row
+ * a step behind the number beside it for the whole period a user is working —
+ * and, after the fourth session, the long break has all four lit, which is
+ * exactly where the cycle is.
  */
 export function CycleReadouts({
   sessions,
@@ -45,6 +52,7 @@ export function CycleReadouts({
   todayFocusMinutes: number;
   streak: number;
 }) {
+  const lit = Math.min(sessions + 1, longBreakAfter);
   return (
     <motion.div
       variants={focusItem}
@@ -75,13 +83,15 @@ export function CycleReadouts({
             key={index}
             lit={(index + 1) / longBreakAfter}
             /*
-             * Two states, not three: the eyebrow above already says which
-             * session this is ("Session 2 of 4"), so the row only has to say how
-             * many are banked. A session in progress is a moon not yet lit.
+             * Two states, not three: lit means reached, whether banked or in
+             * progress. A third tint for "this one is running" would have to be
+             * read against amber and grey at 14px, and the eyebrow above already
+             * names the session; the row only has to say how far the cycle has
+             * come.
              */
             className={cn(
               "transition-[color,filter] duration-500",
-              index < sessions
+              index < lit
                 ? "text-achievement drop-shadow-[0_0_5px_rgba(233,184,114,0.55)]"
                 : "text-ivory/35",
             )}

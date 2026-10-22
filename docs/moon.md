@@ -30,15 +30,20 @@ a hole.
 
 | | |
 | --- | --- |
-| File | `lroc_color_2k.jpg` (NASA SVS, CGI Moon Kit) |
+| File | `lroc_color_2k.jpg` (NASA SVS, CGI Moon Kit, 2025 revision) |
 | URL | <https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_2k.jpg> |
 | Size | 2048×1024, equirectangular (full 360° longitude × 180° latitude) |
-| SHA-256 | `cfc70f02a2fd9d752e3c1237f528c899d681db19a42b7dc5c0d45931b78bb95d` |
+| SHA-256 | `f7130a1822681fa7512d7dcfd40db8c10b9ba4f06777910348698260ed7a2170` |
 | Licence | NASA imagery — public domain, no attribution required (credited here anyway) |
 
 The digest is pinned in the prep script. A replaced map fails the build step
 loudly instead of quietly changing the moon; review the new map, then update the
-pinned hash.
+pinned hash. That is how the previous revision was caught: its bottom **96 rows
+were pure black**, and since those rows are the map's south pole, the projection
+painted them as a black cap across the bottom of the disc — the shape was right
+and only the photograph was missing. The current revision has surface to the
+pole, and `moon/texture-caps` samples the committed disc at both of its poles so
+a letterboxed map cannot come back through a routine rebuild.
 
 The source is cached at `.freebuff/moon-source.jpg` (ignored). The **output** is
 committed, so a checkout builds without the download and without Chrome.
@@ -77,7 +82,7 @@ The script prints the surface's luma distribution after projecting, which is wha
 the treatment below is chosen against:
 
 ```
-surface mean 164.7 luma · p05 122.9 · p50 167.1 · p95 210.1 · 822056 opaque px
+surface mean 165.8 luma · p05 123.6 · p50 167.8 · p95 210.5 · 822056 opaque px
 ```
 
 165 is a *photograph in daylight*. The room's sky is 8 and its clock is white, so
@@ -158,8 +163,10 @@ DevTools protocol from the same helper shape as `verify-visuals`, so there is no
 image dependency in `package.json` and nothing runs during `next build`.
 
 After regenerating, run `npm run verify:visuals`: `moon/texture-asset` checks the
-served file is WebP, square and at least 768px, and `desktop/surface-texture`
-checks the pixels still carry terrain rather than a smooth fill.
+served file is WebP, square and at least 768px, `moon/texture-caps` checks the
+disc's poles carry surface rather than a letterbox band, and
+`desktop/surface-texture` checks the pixels still carry terrain rather than a
+smooth fill.
 
 ## What the checks measure
 
@@ -169,8 +176,9 @@ index, and then:
 - **the treatment**: the texture URL, the brightness/contrast filter, the night
   opacity, the limb shade, the scrim's centre alpha, and that the shade is inside
   the clipped layer;
-- **the asset**: fetched by the page, checking status, MIME type, size and
-  dimensions;
+- **the asset**: fetched by the page, checking status, MIME type, size,
+  dimensions and that both poles are surface (a black south cap is what made the
+  first build's moon end in a straight line);
 - **the surface**: median and p95 of the lit face, the local luma variation
   (`textureRms` — a photograph is not smooth at the pixel scale; a gradient is),
   and the night limb's falloff;
@@ -182,7 +190,13 @@ Deliberate drifts, run against this build: the night opacity at 0.35 fails three
 `night-side-dark` checks; a flat gradient instead of the texture fails
 `desktop/surface-texture` (0.54 against a 1.0 floor, where the photograph reads
 1.25); removing the scrim fails both `clock-contrast` checks (5.6:1 and 6.2:1
-against the 7:1 bar). Each was restored and the green run repeated.
+against the 7:1 bar); and rebuilding the disc from a map whose south 96 rows are
+black — the asset this project shipped first, to the byte — fails
+`moon/texture-caps` alone, south cap 0.1 luma against the 40 floor while the
+north cap stays at 207 and the other 99 measurements hold. That last one is the
+useful shape of the check: the fault was invisible to every geometric measure,
+because the shape was right and only the photograph was missing. Each drift was
+restored and the green run repeated.
 
 ## Credit
 

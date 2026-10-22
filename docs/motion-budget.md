@@ -668,8 +668,8 @@ language:
   colour. The two-disc construction this replaced could not draw that shape — its
   horns stop short of the poles — which is why a three-quarter glyph sat in the
   disc's corner looking like a filled disc (see "The dark crescent" below).
-  Nothing in the strip animates: banking a session only changes which of two
-  states a glyph is in, a colour and a drop-shadow.
+  Nothing in the strip animates: standing at the session in progress only changes
+  which of two states a glyph is in, a colour and a drop-shadow.
 - **Nothing new scales or blurs.** The halo — still the instrument's first
   child, which `visual-check.mjs` samples — animates opacity with constant
   targets, and the instrument keeps its own `will-change: transform` layer.
@@ -746,10 +746,11 @@ time.
 ### The cycle strip
 
 The row under the session is four moon phases rather than four dots: even quarters
-of a disc — crescent, half, gibbous, full — so one banked session is one phase
-further through the cycle, and the full moon at the end of the row is the one that
-buys the long break. Each glyph is a *phase* at 14px: the light's half-plane and
-an ellipse through both poles, its waist `|2k − 1|` of the radius
+of a disc — crescent, half, gibbous, full — so the row stands one phase further for
+each session the cycle reaches, the focus period in progress included, and the
+full moon at the end of the row is the one that buys the long break. Each glyph is
+a *phase* at 14px: the light's half-plane and an ellipse through both poles, its
+waist `|2k − 1|` of the radius
 (`phaseGeometry`), which is the terminator a real moon has.
 `.freebuff/phase-probe.mjs` seeds the clock twice — nothing banked, then two
 sessions — and reads the row off the pixels at DPR 3, where a glyph is 48px. It
@@ -775,13 +776,17 @@ and why the phase's *own* fraction — ¼, ½, ¾, full — is asserted where it
 exactly knowable: off the terminator's geometry in the DOM (waist 5 / 0 / 5 / 10
 of a radius of 10, ry the radius, turn −58.4° = the night axis).
 
-Banking two sessions leaves the shapes and their order where they were — the same
-four lit fractions within 0.03 in both passes — and turns the first two amber
-(`rgb(233, 184, 114)`, measuring 225,178,110 in the pixels) while the last two stay
-ivory. The deep dark of a banked glyph reads `rgb(8, 8, 14)` — the body's colour,
-no amber in it — and the aria-label still reports the count (`2 of 4 focus sessions
-completed`), so the shapes are decoration over the same announcement, not a
-replacement for it.
+Seeding two banked sessions — which puts the third in progress — leaves the shapes
+and their order where they were (the same four lit fractions within 0.03 in both
+passes) and turns the first three amber (`rgb(233, 184, 114)`, measuring
+225,178,110 in the pixels) while the last stays ivory. The row stands at the
+session the eyebrow names; a row that lit only banked sessions read one session
+behind for the whole period, so `verify:visuals` counts the warm glyphs
+(`strip/lit-through-current`, 3 of 4 here) and the semantic drift — lit =
+`sessions` — fails that one check and nothing else. The deep dark of a banked
+glyph reads `rgb(8, 8, 14)` — the body's colour, no amber in it — and the
+aria-label still reports the count (`2 of 4 focus sessions completed`), so the
+shapes are decoration over the same announcement, not a replacement for it.
 The strip is one raster each and the settled budget is unmoved: in
 `.freebuff/idle-probe.mjs`, hiding all four glyphs reads 60fps, p95 16.8ms and 0
 frames past 33ms against a control with 0 as well.

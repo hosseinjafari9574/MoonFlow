@@ -34,8 +34,16 @@ import { fileURLToPath } from "node:url";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SOURCE_URL =
   "https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_2k.jpg";
-/** The 2048×1024 map this asset was built from. */
-const SOURCE_SHA256 = "cfc70f02a2fd9d752e3c1237f528c899d681db19a42b7dc5c0d45931b78bb95d";
+/**
+ * The 2048×1024 map this asset was built from — NASA's 2025 revision.
+ *
+ * The revision before it carried 96 pure-black rows along the bottom edge, and
+ * because those rows are the map's south pole, the projection painted them as a
+ * black cap across the bottom of the disc. The digest is what caught the swap:
+ * the new file is a different byte stream, so it has to be pinned deliberately
+ * rather than inherited from whatever the cache happened to hold.
+ */
+const SOURCE_SHA256 = "f7130a1822681fa7512d7dcfd40db8c10b9ba4f06777910348698260ed7a2170";
 const SOURCE_CACHE = join(ROOT, ".freebuff", "moon-source.jpg");
 
 const args = process.argv.slice(2);

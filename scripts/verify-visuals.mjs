@@ -1194,12 +1194,50 @@ async function main() {
       const response = await fetch(${JSON.stringify(source.textureUrl)});
       const blob = await response.blob();
       const bitmap = await createImageBitmap(blob);
+      /*
+       * The disc's two polar caps, before the room's own dim. The first source
+       * map this asset was built from carried 96 pure-black rows along its
+       * bottom edge; those rows are the map's south pole, so the projection
+       * painted them as a black cap across the very bottom of the moon — a
+       * fault no geometry check can see, because the shape was right and only
+       * the photograph was missing.
+       *
+       * Measured as the mean of the fully opaque pixels in the outer 4% of the
+       * disc's height at each pole, at the asset's own resolution. The cap is an
+       * area, not a point: the limb itself is antialiased against the sky, and
+       * a 64px downsample blends the cap into the rows above it. A band edge at
+       * 0.96 samples latitude −74°, which is where the letterbox rows began, so
+       * a black cap reads 0 here and the surface reads about 200.
+       */
+      const probe = document.createElement("canvas");
+      probe.width = bitmap.width;
+      probe.height = bitmap.height;
+      const context = probe.getContext("2d", { willReadFrequently: true });
+      context.drawImage(bitmap, 0, 0);
+      const pixels = context.getImageData(0, 0, probe.width, probe.height).data;
+      const cap = (from, to) => {
+        let sum = 0;
+        let n = 0;
+        const start = Math.round(((from + 1) / 2) * probe.height);
+        const end = Math.round(((to + 1) / 2) * probe.height);
+        for (let y = start; y < end; y += 1) {
+          for (let x = 0; x < probe.width; x += 1) {
+            const i = (y * probe.width + x) * 4;
+            if (pixels[i + 3] !== 255) continue;
+            sum += 0.2126 * pixels[i] + 0.7152 * pixels[i + 1] + 0.0722 * pixels[i + 2];
+            n += 1;
+          }
+        }
+        return n ? sum / n : 0;
+      };
       return {
         status: response.status,
         type: response.headers.get("content-type"),
         bytes: blob.size,
         width: bitmap.width,
         height: bitmap.height,
+        north: cap(-1, -0.96),
+        south: cap(0.96, 1),
       };
     })()`);
     record(
@@ -1209,6 +1247,11 @@ async function main() {
         asset.width === asset.height &&
         asset.width >= 768,
       `${asset.status} ${asset.type}, ${fmt(asset.bytes / 1024, 1)} KB, ${asset.width}×${asset.height}`,
+    );
+    record(
+      "moon/texture-caps",
+      asset.north >= 40 && asset.south >= 40,
+      `polar caps: north ${fmt(asset.north, 1)} luma, south ${fmt(asset.south, 1)} luma (a letterboxed south edge reads 0)`,
     );
 
     if (!moon.box) throw new Error("the moon's disc did not render");
@@ -1329,6 +1372,17 @@ async function main() {
       Number.isFinite(pendingWarmth) && Math.abs(pendingWarmth) <= 15,
       `full moon's lit side r−b ${pendingWarmth}`,
     );
+    /*
+     * The row stands at the session the eyebrow names: with two banked, the
+     * third — in progress — is already lit. A row that lit only banked sessions
+     * read one session behind for the whole period, which is what it used to do;
+     * this counts the glyphs whose lit side is warm, so the off-by-one fails here
+     * rather than only on a screenshot.
+     */
+    const warmGlyphs = stripPixels.filter(
+      (glyph) => glyph.litWarmth !== null && glyph.litWarmth >= 30,
+    ).length;
+    same("strip/lit-through-current", warmGlyphs, Math.min(SESSIONS + 1, source.cycle));
 
     /*
      * The gibbous half of the session, where the old offset-disc construction
