@@ -81,6 +81,15 @@ at full size.
 
 ![Focus Mode's moon at full size, waxing](docs/png/moon.png)
 
+**Its surface is a photograph**, not a gradient: NASA's CGI Moon Kit base-colour
+map, reprojected orthogonally into a disc and dimmed until it sits under the
+clock. Base colour rather than a full-moon photograph on purpose — a photograph
+carries the Sun's own shadows, which would fight the terminator this room moves
+across it. The image is built once by `npm run prepare:moon` and committed, so a
+checkout needs neither network nor a browser. Where it comes from, the
+projection, the five numbers that set its exposure, and what each one measures
+are in **[docs/moon.md](docs/moon.md)**.
+
 **Gibbous** — the session four-fifths run. Before this pass the dial's moon was
 a second disc of the moon's own dark sliding along the axis; that construction
 is exact up to half and cannot draw the fuller shape — an equal disc's edge
@@ -151,6 +160,7 @@ npm install
 npm run dev        # http://localhost:3000
 npm run build      # production build
 npm run typecheck  # tsc --noEmit
+npm run prepare:moon # rebuild the moon's surface asset (needs Chrome)
 ```
 
 ## Features
@@ -241,7 +251,7 @@ components/     feature UI (list, focus mode, pomodoro, stats…) + ui/ (shadcn)
 hooks/          timer engine, global keyboard shortcuts, page visibility, ring sizing
 lib/            pure helpers (activity, format, sound, actions) + motion & tone systems
 store/          Zustand stores (todos, timer, routines, transient UI)
-docs/           the mark spec (geometry, clearances, regeneration)
+docs/           the mark spec (geometry, clearances, regeneration) + the moon's surface
 ```
 
 Focus Mode is the one full-screen surface, so it is built from parts rather than
@@ -332,6 +342,9 @@ opens the room, reads the card's marks, the moon's light and the strip's masks
 out of the DOM, reads their pixels back off screenshots, and compares both with
 what the source implies — the tick angles and lit count, where the arc stops,
 `MOON_LIGHT`'s night axis and travel, `--moon-dark`, and each glyph's lit area.
+It also reads the moon's *surface*: the texture is served, the lit face carries
+local terrain rather than a smooth fill, the night side stays under 30 luma, the
+far limb turns away, and the clock clears 7:1 over the scrim at full moon.
 It starts a dev server itself, exits non-zero and lists every measurement that
 drifted, so a quarter-turn of the graduations or a token moved in one place
 fails the command rather than the design review. It also drives the whole
@@ -367,3 +380,12 @@ completion is always noticed late, and the store treats the clock *reaching*
 zero as the session whatever the page was doing at the time — banking the
 session's whole minutes rather than the ones it watched go by. Both paths are
 covered in `.freebuff/e2e-timer.mjs` (cases 10 and 11).
+
+## Credits
+
+The moon's surface is NASA's **CGI Moon Kit** (NASA Scientific Visualization
+Studio, from Lunar Reconnaissance Orbiter data), public-domain NASA imagery; it
+is reprojected to a disc by [`scripts/prepare-moon-texture.mjs`](scripts/prepare-moon-texture.mjs)
+and the result is documented in [docs/moon.md](docs/moon.md). Everything else
+here — interface, marks, animation — is drawn in CSS, SVG and canvas with no
+image dependencies.

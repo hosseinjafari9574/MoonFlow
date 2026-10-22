@@ -8,6 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "verify:visuals": "node scripts/verify-visuals.mjs",
+    "prepare:moon": "node scripts/prepare-moon-texture.mjs",
     "shots": "node scripts/readme-shots.mjs"
   },
   "dependencies": {

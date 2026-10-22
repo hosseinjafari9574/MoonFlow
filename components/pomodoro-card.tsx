@@ -28,6 +28,7 @@ import { useTimerStore } from "@/store/use-timer-store";
 import { useUiStore } from "@/store/use-ui-store";
 import { ProgressRing } from "@/components/progress-ring";
 import { Button } from "@/components/ui/button";
+import { warmMoonTexture } from "@/lib/moon-texture";
 
 const MODES = ["focus", "short", "long"] as const;
 
@@ -68,6 +69,17 @@ export function PomodoroCard() {
     ordered.find((task) => task.id === selectedId && !task.completed) ??
     ordered.find((task) => !task.completed) ??
     null;
+  /*
+   * The room's moon is a photograph, and the card is where people wait before
+   * opening the room. Warming it after the page has settled keeps a 158 KB
+   * fetch off the critical path without making the room's first frame wait for
+   * it — see `lib/moon-texture.ts`.
+   */
+  useEffect(() => {
+    const timer = window.setTimeout(warmMoonTexture, 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const reduceMotion = useReducedMotion();
 
   const [announcement, setAnnouncement] = useState("");

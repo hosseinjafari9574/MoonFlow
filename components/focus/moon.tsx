@@ -6,6 +6,13 @@ import {
   MOON_DARK,
   MOON_GLYPH,
   MOON_LIGHT,
+  MOON_LIMB_SHADE,
+  MOON_LIT_BRIGHTNESS,
+  MOON_LIT_CONTRAST,
+  MOON_NIGHT_OPACITY,
+  MOON_NIGHT_SATURATION,
+  MOON_SCRIM_OPACITY,
+  MOON_TEXTURE_URL,
   PHASE_RADIUS,
   phaseGeometry,
 } from "@/components/focus/geometry";
@@ -189,15 +196,9 @@ export function MoonBody({
   }, [flip, shownFlip, reduceMotion]);
 
   const { angle } = phaseGeometry(shownLit);
-  /*
-   * The wash belongs to the phase too: it dims as the moon drains, so the dark
-   * face at the end of a break is quieter than the full face that started it.
-   * It is quantised in the same 5% steps the previous value used, and the 240ms
-   * opacity transition smooths the steps while the clip path is moving.
-   */
-  const wash = 0.86 + (Math.round(shownLit * 20) / 20) * 0.14;
   return (
     <div
+      data-part="disc"
       aria-hidden
       className="pointer-events-none absolute overflow-hidden rounded-full"
       style={{ inset, background: MOON_DARK }}
@@ -218,31 +219,74 @@ export function MoonBody({
       </svg>
 
       {/*
-       * The sphere's own light, brightest toward its source, cut to the lit
-       * region. Its levels are what make the disc read as a *moon* rather than
-       * as a dark hole behind the clock: the body sits on the room's own
-       * near-black, so all of the shape comes from this layer and the limb above
-       * it.
-       *
-       * The flat tint underneath is what keeps a **gibbous** moon lit to its
-       * terminator: the highlight alone falls to a near-black limb on the far
-       * side, so past half the disc read as a crescent that had been stretched
-       * rather than as a moon. The highlight stays a function of the light's
-       * position; the tint is the surface the light is falling on.
+       * The night side: the same photograph at 5%, which is what an earthlit
+       * moon looks like. It sits *under* the lit layer rather than being drawn
+       * by it, so the two are one surface at two exposures rather than a shape
+       * pasted onto a hole. The token beneath keeps the disc a body even where
+       * the texture is transparent at the corners.
        */}
       <div
+        data-part="night"
         className="absolute inset-0"
         style={{
-          background: `radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, rgba(236,240,255,0.16), rgba(139,153,255,0.05) 48%, rgba(139,153,255,0) 82%), rgba(139,153,255,0.075)`,
-          opacity: wash,
-          clipPath: `url(#${clipId})`,
-          transition: reduceMotion ? "none" : "opacity 240ms linear",
+          backgroundImage: `url("${MOON_TEXTURE_URL}")`,
+          backgroundSize: "100% 100%",
+          opacity: MOON_NIGHT_OPACITY,
+          filter: `saturate(${MOON_NIGHT_SATURATION})`,
+        }}
+      />
+
+      {/*
+       * The lit face: the albedo map, cut by the phase's exact terminator. The
+       * clip is on this wrapper and the tone on its child, so no element carries
+       * a filter *and* a clip path — a pairing Safari has drawn wrongly before.
+       *
+       * `shade` is the sphere over the photograph: a soft highlight from the
+       * light's side and a falloff to the far limb, so the surface turns away
+       * from the viewer instead of ending as a flat disc of terrain. The map is
+       * base colour, so this is the only lighting the surface itself gets.
+       */}
+      <div
+        data-part="lit"
+        className="absolute inset-0"
+        style={{ clipPath: `url(#${clipId})` }}
+      >
+        <div
+          data-part="surface"
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url("${MOON_TEXTURE_URL}")`,
+            backgroundSize: "100% 100%",
+            filter: `brightness(${MOON_LIT_BRIGHTNESS}) contrast(${MOON_LIT_CONTRAST})`,
+          }}
+        />
+        <div
+          data-part="shade"
+          className="absolute inset-0"
+          style={{
+            background: `radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, rgba(236,240,255,0.055), rgba(236,240,255,0) 46%), radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, transparent 34%, rgba(2,4,9,${MOON_LIMB_SHADE}) 92%)`,
+          }}
+        />
+      </div>
+
+      {/*
+       * The scrim under the reading. The clock is white and the photograph is
+       * not, so the brightest phase gets a soft centre of shade — a paint that
+       * fades out by 46% of the disc, where the maria start reading again. It is
+       * a constant: the phase must not also move the light the type sits on.
+       */}
+      <div
+        data-part="scrim"
+        className="absolute inset-0"
+        style={{
+          background: `radial-gradient(circle at 50% 50%, rgba(3,5,10,${MOON_SCRIM_OPACITY}), rgba(3,5,10,${(
+            MOON_SCRIM_OPACITY * 0.62
+          ).toFixed(3)}) 22%, rgba(3,5,10,0) 46%)`,
         }}
       />
     </div>
   );
 }
-
 /**
  * The moon's form, above its light: the limb's hairline, the rim light along the
  * lower-left edge and the falloff to the upper right. It carries no fill of its

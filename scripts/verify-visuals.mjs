@@ -98,8 +98,32 @@ function readSource() {
   const cycle = /longBreakAfter: (\d+)/.exec(constants);
   const dark = /--moon-dark:\s*(#[0-9a-fA-F]{6})/.exec(globals);
   const glyph = /--moon-glyph:\s*(#[0-9a-fA-F]{6})/.exec(globals);
+  /*
+   * The moon's *surface*: the texture and the four numbers the treatment is
+   * set by. Read the same way as the light — a drift in any of them is a change
+   * the check has to see, not one it silently inherits from the import.
+   */
+  const textureUrl = /MOON_TEXTURE_URL = "([^"]+)"/.exec(geometry);
+  const brightness = /MOON_LIT_BRIGHTNESS = ([\d.]+)/.exec(geometry);
+  const contrast = /MOON_LIT_CONTRAST = ([\d.]+)/.exec(geometry);
+  const nightOpacity = /MOON_NIGHT_OPACITY = ([\d.]+)/.exec(geometry);
+  const scrim = /MOON_SCRIM_OPACITY = ([\d.]+)/.exec(geometry);
+  const limb = /MOON_LIMB_SHADE = ([\d.]+)/.exec(geometry);
 
-  if (!light || !minLit || !focusMinutes || !cycle || !dark || !glyph) {
+  if (
+    !light ||
+    !minLit ||
+    !focusMinutes ||
+    !cycle ||
+    !dark ||
+    !glyph ||
+    !textureUrl ||
+    !brightness ||
+    !contrast ||
+    !nightOpacity ||
+    !scrim ||
+    !limb
+  ) {
     throw new Error(
       "could not read the instrument's own numbers out of components/focus/geometry.ts, " +
         "lib/constants.ts or app/globals.css — update the patterns in scripts/verify-visuals.mjs",
@@ -113,6 +137,14 @@ function readSource() {
     cycle: Number(cycle[1]),
     moonDark: dark[1],
     moonGlyph: glyph[1],
+    textureUrl: textureUrl[1],
+    surface: {
+      brightness: Number(brightness[1]),
+      contrast: Number(contrast[1]),
+      nightOpacity: Number(nightOpacity[1]),
+      scrim: Number(scrim[1]),
+      limb: Number(limb[1]),
+    },
   };
 }
 
@@ -360,12 +392,31 @@ function readFocusRoom() {
 
   const instrument = dialog.querySelector("div.relative.flex-none");
   const moon = instrument?.children?.[1] ?? null;
-  /* The body is the SVG holding the clip definition, then the lit layer. */
+  /*
+   * The moon's body, by its parts rather than by child index: the disc holds the
+   * clip definition, the night surface, the clipped lit surface, and the scrim
+   * under the reading. Reading `children[1]` (which the old gradient body made
+   * the light layer) is exactly the sort of coupling a layer swap breaks.
+   */
+  const part = (name) =>
+    moon?.getAttribute("data-part") === name
+      ? moon
+      : (moon?.querySelector(`[data-part="${name}"]`) ?? null);
   const clipPath = moon?.querySelector("clipPath path") ?? null;
-  const light = moon?.children?.[1] ?? null;
+  const litLayer = part("lit");
+  const surface = part("surface");
+  const night = part("night");
+  const shade = part("shade");
+  const scrim = part("scrim");
   const disc = moon?.getBoundingClientRect() ?? null;
-  const gradient = light ? getComputedStyle(light).backgroundImage : "";
+  const gradient = shade ? getComputedStyle(shade).backgroundImage : "";
   const at = /circle at ([\d.]+)% ([\d.]+)%/.exec(gradient);
+  const scrimGradient = scrim ? getComputedStyle(scrim).backgroundImage : "";
+  const scrimCentre = /rgba\(3, 5, 10, ([\d.]+)\)/.exec(scrimGradient);
+  const textureMatch = surface
+    ? /url\("([^"]+)"\)/.exec(getComputedStyle(surface).backgroundImage)
+    : null;
+  const surfaceFilter = surface ? getComputedStyle(surface).filter : "";
   const path = clipPath?.getAttribute("d") ?? "";
   const terminatorArc = /A ([\d.]+) 0\.5 0 0 ([01]) 0\.5 0/.exec(path);
   const angleMatch = (clipPath?.getAttribute("transform") || "").match(/rotate\(([-\d.]+)/);
@@ -405,6 +456,18 @@ function readFocusRoom() {
       box: disc ? { x: disc.x, y: disc.y, w: disc.width, h: disc.height } : null,
       light: at ? { x: Number(at[1]), y: Number(at[2]) } : null,
       fill: moon ? getComputedStyle(moon).backgroundColor : null,
+      texture: {
+        url: textureMatch ? textureMatch[1] : null,
+        filter: surfaceFilter,
+        night: night ? getComputedStyle(night).opacity : null,
+        scrimCentre: scrimCentre ? Number(scrimCentre[1]) : null,
+        /* The far-limb shade, and that it rides inside the clipped lit layer. */
+        limbShade: Number(/rgba\(2, 4, 9, ([\d.]+)\) 92%/.exec(gradient)?.[1]),
+        shadeClipped: Boolean(shade && shade.parentElement?.getAttribute("data-part") === "lit"),
+        /* Whether the surface, not just its wrapper, is a photograph. */
+        painted: Boolean(surface && getComputedStyle(surface).backgroundImage !== "none"),
+      },
+      parts: ["disc", "night", "lit", "surface", "shade", "scrim"].filter((name) => part(name)),
       phase: {
         path,
         /* The terminator's waist, as a fraction of the radius. */
@@ -412,7 +475,7 @@ function readFocusRoom() {
         /* 0 draws the ellipse on the night side (gibbous), 1 on the lit side. */
         sweep: terminatorArc ? Number(terminatorArc[2]) : null,
         angle: angleMatch ? Number(angleMatch[1]) : null,
-        clip: light ? getComputedStyle(light).clipPath : null,
+        clip: litLayer ? getComputedStyle(litLayer).clipPath : null,
       },
     },
     strip: {
@@ -551,6 +614,144 @@ async function measurePixels(spec) {
       nightLimb: at(-ux, -uy, 0.88),
       litPastCentre: at(vx, vy, 0.62),
       centre: at(0, 0, 0.1),
+    };
+  }
+
+  if (spec.kind === "surface") {
+    /*
+     * The lit face is a *photograph*, and this is what says so. Two discs of
+     * the same mean luma are not the same surface: a gradient is smooth at every
+     * scale, a lunar albedo is not. `textureRms` is the local variation — each
+     * sample against the mean of its own 3×3 neighbourhood — so the sphere's
+     * broad falloff is subtracted out and what is left is terrain. Reverting the
+     * surface to a gradient drops it to near zero while every luma check still
+     * passes; that is the drift this measurement exists for.
+     *
+     * The annulus starts at 0.5 of the radius so the clock's type and the scrim
+     * over it are both outside the sample, and stops at 0.86 so the limb's own
+     * antialiasing is outside it too.
+     */
+    const radius = w / 2;
+    const cx = w / 2;
+    const cy = h / 2;
+    const lx = spec.light.x / 100 - 0.5;
+    const ly = spec.light.y / 100 - 0.5;
+    const length = Math.hypot(lx, ly);
+    const ux = lx / length;
+    const uy = ly / length;
+    const lumaOf = (x, y) => {
+      const p = rgbAt(x, y);
+      return p ? 0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b : null;
+    };
+    const lit = [];
+    let localSum = 0;
+    let localCount = 0;
+    for (let y = Math.ceil(cy - radius * 0.86); y <= Math.floor(cy + radius * 0.86); y += 2) {
+      for (let x = Math.ceil(cx - radius * 0.86); x <= Math.floor(cx + radius * 0.86); x += 2) {
+        const dx = (x + 0.5 - cx) / radius;
+        const dy = (y + 0.5 - cy) / radius;
+        const r = Math.hypot(dx, dy);
+        if (r < 0.5 || r > 0.86) continue;
+        /*
+         * The lit region, with the terminator's own antialiasing excluded: the
+         * boundary sits `|2k − 1|` of the radius along the axis, and a sample
+         * astride it would report the phase's hard edge as "texture".
+         */
+        const cut = spec.lit < 0.5 ? Math.max(0.18, 1 - 2 * spec.lit + 0.15) : 0.18;
+        if (dx * ux + dy * uy < cut) continue;
+        const l = lumaOf(x, y);
+        if (l === null) continue;
+        lit.push(l);
+        let sum = 0;
+        let count = 0;
+        for (let oy = -1; oy <= 1; oy += 1) {
+          for (let ox = -1; ox <= 1; ox += 1) {
+            const n = lumaOf(x + ox, y + oy);
+            if (n !== null) {
+              sum += n;
+              count += 1;
+            }
+          }
+        }
+        localSum += (l - sum / count) ** 2;
+        localCount += 1;
+      }
+    }
+    const sorted = lit.sort((a, b) => a - b);
+    const percentile = (fraction) =>
+      sorted.length ? sorted[Math.floor(fraction * (sorted.length - 1))] : null;
+    /*
+     * The sphere's own falloff, read on the *night* limb: at both phases this
+     * check runs at, 0.68 of the radius away from the light is past the
+     * terminator, while 0.92 is close enough to the edge for the limb to turn
+     * away. Measuring the lit side instead would be measuring the albedo's
+     * brightest highlands, which sit right where the light's axis meets the rim.
+     */
+    const along = (fraction) =>
+      meanAt(cx + ux * fraction * radius, cy + uy * fraction * radius, 3);
+    return {
+      count: sorted.length,
+      median: percentile(0.5),
+      p05: percentile(0.05),
+      p95: percentile(0.95),
+      textureRms: localCount ? Math.sqrt(localSum / localCount) : null,
+      litAtMid: along(0.42),
+      litAtLimb: along(0.84),
+      nightAtMid: along(-0.68),
+      nightAtLimb: along(-0.92),
+      limbFalloff: along(-0.68) - along(-0.92),
+    };
+  }
+
+  if (spec.kind === "clock") {
+    /*
+     * The reading over the moon: its own type against the scrim it sits on. The
+     * background is the *median* of the pixels that are clearly not type, so a
+     * line of white numerals cannot drag its own backdrop up with it.
+     */
+    const radius = w / 2;
+    const cx = w / 2;
+    const cy = h / 2;
+    const background = [];
+    const type = [];
+    for (let y = Math.floor(cy - radius * 0.2); y <= Math.ceil(cy + radius * 0.2); y += 1) {
+      for (let x = Math.floor(cx - radius * 0.3); x <= Math.ceil(cx + radius * 0.3); x += 1) {
+        const p = rgbAt(x, y);
+        if (!p) continue;
+        const l = 0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b;
+        if (l < 110) background.push(p);
+        else if (l > 170) type.push(p);
+      }
+    }
+    const linear = (channel) => {
+      const s = channel / 255;
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    };
+    const relLuma = (p) => 0.2126 * linear(p.r) + 0.7152 * linear(p.g) + 0.0722 * linear(p.b);
+    const medianOf = (pixels, key) => {
+      if (!pixels.length) return null;
+      const values = pixels.map(key).sort((a, b) => a - b);
+      return values[Math.floor(values.length / 2)];
+    };
+    const back = {
+      r: medianOf(background, (p) => p.r),
+      g: medianOf(background, (p) => p.g),
+      b: medianOf(background, (p) => p.b),
+    };
+    const front = {
+      r: medianOf(type, (p) => p.r),
+      g: medianOf(type, (p) => p.g),
+      b: medianOf(type, (p) => p.b),
+    };
+    const bg = background.length ? relLuma(back) : null;
+    const fg = type.length ? relLuma(front) : null;
+    const contrast = bg !== null && fg !== null ? (fg + 0.05) / (bg + 0.05) : null;
+    const lumaOf = (p) => 0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b;
+    return {
+      contrast,
+      background: background.length ? lumaOf(back) : null,
+      type: type.length ? lumaOf(front) : null,
+      samples: { background: background.length, type: type.length },
     };
   }
 
@@ -880,8 +1081,9 @@ async function main() {
 
     /* ------------------------------------------------- the moon and the strip */
 
-    const loadPhone = async () => {
-      await load(390, 844, 3);
+    /** Opens the room at a viewport, and waits for it to have settled. */
+    const openRoom = async (width, height, dpr) => {
+      await load(width, height, dpr);
       const opened = await session.eval(`(() => {
         const button = [...document.querySelectorAll("main button")].find((element) =>
           (element.getAttribute("aria-label") || "").startsWith("Enter focus mode"),
@@ -897,6 +1099,7 @@ async function main() {
       await session.eval("document.fonts.ready.then(() => true)");
       await sleep(1500);
     };
+    const loadPhone = () => openRoom(390, 844, 3);
 
     await loadPhone();
     const room = await inPage(session, readFocusRoom);
@@ -948,6 +1151,66 @@ async function main() {
       `terminator ${fmt(terminatorAngle)}° from the horizontal, documented band 52–65°`,
     );
 
+    /*
+     * The surface: the photograph, and the four numbers the treatment is set
+     * by. These are read off the *lit layer's own surface*, not off the disc, so
+     * a texture that failed to apply cannot pass on the night layer's fill.
+     */
+    same(
+      "moon/parts",
+      moon.parts.join(","),
+      "disc,night,lit,surface,shade,scrim",
+    );
+    record(
+      "moon/texture-url",
+      Boolean(moon.texture.url && moon.texture.url.endsWith(source.textureUrl)),
+      `lit surface paints ${JSON.stringify(moon.texture.url)}, expected …${source.textureUrl}`,
+    );
+    const surfaceFilter = moon.texture.filter || "";
+    const brightness = Number(/brightness\(([\d.]+)\)/.exec(surfaceFilter)?.[1]);
+    const contrast = Number(/contrast\(([\d.]+)\)/.exec(surfaceFilter)?.[1]);
+    near("moon/surface-brightness", brightness, source.surface.brightness, 0.001);
+    near("moon/surface-contrast", contrast, source.surface.contrast, 0.001);
+    near("moon/night-opacity", Number(moon.texture.night), source.surface.nightOpacity, 0.001);
+    near("moon/scrim-opacity", moon.texture.scrimCentre, source.surface.scrim, 0.002);
+    near("moon/limb-shade", moon.texture.limbShade, source.surface.limb, 0.002);
+    record(
+      "moon/shade-clipped",
+      moon.texture.shadeClipped,
+      `the far-limb shade ${moon.texture.shadeClipped ? "is" : "is not"} inside the clipped lit layer`,
+    );
+    record(
+      "moon/texture-painted",
+      moon.texture.painted,
+      `lit surface background ${moon.texture.painted ? "is" : "is not"} painted`,
+    );
+
+    /*
+     * The asset itself, fetched by the page: a URL in a style is not an image.
+     * The disc is square, opaque inside its own limb and at least 768px across
+     * so the 300px phone disc is still oversampled on a 3× screen.
+     */
+    const asset = await session.eval(`(async () => {
+      const response = await fetch(${JSON.stringify(source.textureUrl)});
+      const blob = await response.blob();
+      const bitmap = await createImageBitmap(blob);
+      return {
+        status: response.status,
+        type: response.headers.get("content-type"),
+        bytes: blob.size,
+        width: bitmap.width,
+        height: bitmap.height,
+      };
+    })()`);
+    record(
+      "moon/texture-asset",
+      asset.status === 200 &&
+        /image\/webp/.test(asset.type || "") &&
+        asset.width === asset.height &&
+        asset.width >= 768,
+      `${asset.status} ${asset.type}, ${fmt(asset.bytes / 1024, 1)} KB, ${asset.width}×${asset.height}`,
+    );
+
     if (!moon.box) throw new Error("the moon's disc did not render");
     const moonShot = await capture("moon.png", moon.box, 2);
     const moonPixels = await inPage(session, measurePixels, {
@@ -966,6 +1229,36 @@ async function main() {
       "moon/past-centre-dark",
       moonPixels.litPastCentre - moonPixels.nightSide <= 9,
       `pole line ${fmt(moonPixels.litPastCentre, 1)} luma, night side ${fmt(moonPixels.nightSide, 1)} (crescent: both dark; the glow is not a phase)`,
+    );
+
+    /*
+     * And the surface those numbers add up to. `textureRms` is the one that
+     * cannot be satisfied by a flat fill: it measures the terrain itself, after
+     * the sphere's broad shading is subtracted out per pixel.
+     */
+    const surfacePixels = await inPage(session, measurePixels, {
+      kind: "surface",
+      shot: moonShot,
+      light: source.light,
+      lit: moonLit,
+    });
+    /*
+     * The phone capture is the *level* check, not the texture one: at the 3×
+     * device pixel ratio the browser's gradient dithering sits at about the size
+     * of the albedo's own fine detail (a 278px disc is 834px of screenshot), so
+     * a local-RMS reading there cannot tell a photograph from a flat fill. The
+     * desktop pass below is the one that measures terrain.
+     */
+    record(
+      "moon/surface-level",
+      surfacePixels.median >= 75 && surfacePixels.p95 <= 150,
+      `median ${fmt(surfacePixels.median, 1)} luma, p05 ${fmt(surfacePixels.p05, 1)}, p95 ${fmt(surfacePixels.p95, 1)}`,
+    );
+    atLeast(
+      "moon/limb-falloff",
+      surfacePixels.limbFalloff,
+      5,
+      " luma (night side, 0.68R − 0.92R)",
     );
 
     same("strip/count", strip.count, source.cycle);
@@ -1108,6 +1401,49 @@ async function main() {
     );
 
     /*
+     * The same disc at the largest size the room draws — the ring's own cap, 384,
+     * which is the desktop instrument and a 307px disc. The surface has to hold at
+     * both ends: a texture that reads at 278px must not alias at 307, and the
+     * clock's scrim must still hold the reading at a disc where the type is a
+     * fifth of it. The phase is the seeded gibbous, so the clock sits on lit
+     * surface rather than near a terminator.
+     */
+    await openRoom(1280, 900, 2);
+    const wide = await inPage(session, readFocusRoom);
+    if (!wide?.moon.box) throw new Error("the desktop moon did not render");
+    console.log(`\nmoon — desktop, ring ${fmt(wide.dial.box.w, 0)}px\n`);
+    near("desktop/disc-size", wide.moon.box.w, wide.dial.box.w * 0.8, 3, "px");
+    const wideShot = await capture("moon-desktop.png", wide.moon.box, 2);
+    const wideSurface = await inPage(session, measurePixels, {
+      kind: "surface",
+      shot: wideShot,
+      light: source.light,
+      lit: gibbousLit,
+    });
+    const wideClock = await inPage(session, measurePixels, { kind: "clock", shot: wideShot });
+    atLeast("desktop/surface-texture", wideSurface.textureRms, 1, " luma rms");
+    record(
+      "desktop/surface-level",
+      wideSurface.median >= 75 && wideSurface.p95 <= 150,
+      `median ${fmt(wideSurface.median, 1)} luma, p05 ${fmt(wideSurface.p05, 1)}, p95 ${fmt(wideSurface.p95, 1)}`,
+    );
+    atLeast(
+      "desktop/limb-falloff",
+      wideSurface.limbFalloff,
+      5,
+      " luma (night side, 0.68R − 0.92R)",
+    );
+    record(
+      "desktop/clock-contrast",
+      wideClock.contrast >= 7,
+      `${fmt(wideClock.contrast, 2)}:1 — type ${fmt(wideClock.type, 1)} luma over ` +
+        `scrimmed surface ${fmt(wideClock.background, 1)} luma, four fifths lit`,
+    );
+
+    /* The cycle reads its own pixels at the phone's size, the one people use. */
+    await loadPhone();
+
+    /*
      * ------------------------------------------------------ the full cycle
      *
      * The cycle is the moon's animation, and its two directions have to be one
@@ -1167,7 +1503,7 @@ async function main() {
         shot,
         light: source.light,
       });
-      return { phase: roomNow.moon.phase, dial: roomNow.dial, pixels };
+      return { phase: roomNow.moon.phase, dial: roomNow.dial, pixels, shot };
     };
 
     /*
@@ -1187,8 +1523,9 @@ async function main() {
     near("cycle/focus-start-angle", focusStart.phase.angle, axisAngle, 0.05, "°");
     record(
       "cycle/focus-start-dark",
-      focusStart.pixels.litSide <= 30 && focusStart.pixels.nightSide <= 30,
-      `lit side ${fmt(focusStart.pixels.litSide, 1)} luma, night side ${fmt(focusStart.pixels.nightSide, 1)}`,
+      focusStart.pixels.litSide <= 36 && focusStart.pixels.nightSide <= 30,
+      `lit side ${fmt(focusStart.pixels.litSide, 1)} luma, night side ${fmt(focusStart.pixels.nightSide, 1)} ` +
+        `(earthlit surface varies a few luma across the disc, so both are ceilings)`,
     );
 
     /* 2. Ten minutes in: the light has entered from the left. */
@@ -1236,6 +1573,25 @@ async function main() {
       "cycle/break-start-full",
       breakStart.pixels.litSide >= 12 && breakStart.pixels.nightSide >= 12,
       `lit side ${fmt(breakStart.pixels.litSide, 1)} luma, night side ${fmt(breakStart.pixels.nightSide, 1)} (both lit)`,
+    );
+    /*
+     * Full moon is the brightest surface the reading ever sits on, so it is where
+     * the scrim has to hold the clock's contrast. The bar is 7:1 — WCAG AAA — not
+     * the 3:1 a display-size number would technically need, because the reading is
+     * the one thing the room exists to show and the scrim is there to buy exactly
+     * that margin: the surface dimmed to 0.62 already lands at about 5.6:1 without
+     * it, so a 4.5 floor would pass an unshaded full moon and never test the scrim
+     * at all (measured, 2026-10-21).
+     */
+    const clockPixels = await inPage(session, measurePixels, {
+      kind: "clock",
+      shot: breakStart.shot,
+    });
+    record(
+      "cycle/clock-contrast",
+      clockPixels.contrast >= 7,
+      `${fmt(clockPixels.contrast, 2)}:1 — type ${fmt(clockPixels.type, 1)} luma over ` +
+        `scrimmed surface ${fmt(clockPixels.background, 1)} luma at full moon`,
     );
 
     /*
@@ -1297,7 +1653,7 @@ async function main() {
       "cycle/break-end-dark",
       endNearDrop >= 20 &&
         endFarDrop >= 4 &&
-        breakEnd.pixels.litSide <= 36 &&
+        breakEnd.pixels.litSide <= 42 &&
         breakEnd.pixels.nightSide <= 36,
       `left ${fmt(breakStart.pixels.litSide, 1)} → ${fmt(breakEnd.pixels.litSide, 1)} (drop ${fmt(endNearDrop, 1)}), ` +
         `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(breakEnd.pixels.nightSide, 1)} (drop ${fmt(endFarDrop, 1)})`,
@@ -1312,7 +1668,7 @@ async function main() {
     near("cycle/focus-return-angle", returned.phase.angle, axisAngle, 0.05, "°");
     record(
       "cycle/focus-return-dark",
-      returned.pixels.litSide <= 30 && returned.pixels.nightSide <= 30,
+      returned.pixels.litSide <= 36 && returned.pixels.nightSide <= 30,
       `lit side ${fmt(returned.pixels.litSide, 1)} luma, night side ${fmt(returned.pixels.nightSide, 1)}`,
     );
     await moveClock(0);

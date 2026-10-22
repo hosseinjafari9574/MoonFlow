@@ -102,6 +102,78 @@ export const MOON_GLYPH = "var(--moon-glyph)";
  */
 export const MOON_MIN_LIT = 0;
 
+/*
+ * The moon's *surface*: one photographic albedo disc, lit by the room's own
+ * terminator rather than painted from gradients.
+ *
+ * The image is NASA's CGI Moon Kit colour map, reprojected orthographically to
+ * a 1024px disc by `scripts/prepare-moon-texture.mjs` (`npm run prepare:moon`).
+ * It is that map and not a full-moon photograph because the map is **base
+ * colour before lighting** — a photograph carries the Sun's own shadows and
+ * limb falloff, which would sit under this app's moving terminator as a second,
+ * contradictory light. See `docs/moon.md` for the projection and the licence.
+ *
+ * The terminator is unchanged: it is still `phaseGeometry`'s exact great-circle
+ * ellipse, so the surface swap buys texture, not a new shape. What the numbers
+ * below do is make a photographic albedo (mean 165 luma, p05 123, p95 210) sit
+ * inside a room whose sky is 8 and whose clock is white.
+ */
+export const MOON_TEXTURE_URL = "/moon/moon-disc.webp";
+
+/**
+ * How much of the albedo's own brightness the lit face keeps.
+ *
+ * 165 luma is a *photograph in daylight*; at full moon the disc has to stay
+ * dimmer than the reading inside it or the clock loses its figure on the
+ * surface. 0.62 puts the mean near 102 and the brightest maria near 130 — a
+ * moon that is visibly a photograph, still clearly a body in space rather than
+ * a lamp, and with the white readout legible above it (the scrim below buys
+ * the rest). The same value is applied to the night side at a fraction.
+ */
+export const MOON_LIT_BRIGHTNESS = 0.62;
+
+/**
+ * A small contrast lift, because a linear dim keeps the maria but flattens the
+ * difference between them and the highlands; 1.08 is the step that survives the
+ * 0.62 dim without painting the surface as a high-contrast map.
+ */
+export const MOON_LIT_CONTRAST = 1.08;
+
+/**
+ * The night side is the same surface at 5% — *earthshine*, not a hole and not a
+ * second flat fill.
+ *
+ * The number is set by the room's own darkness rather than by taste: the disc
+ * sits on `--moon-dark` (21 luma, the token the strip and the old body shared),
+ * and the night face must stay under 30 or it stops reading as shadow. At the
+ * albedo's mean, 5% lands the body near 29 and its brightest maria near 30 — a
+ * silhouette with the faintest texture in it, which is what an earthlit moon
+ * actually is at this distance.
+ */
+export const MOON_NIGHT_OPACITY = 0.05;
+
+/** Desaturating the night keeps it from reading as a colour rather than shadow. */
+export const MOON_NIGHT_SATURATION = 0.55;
+
+/**
+ * The scrim under the clock: a soft, centred darkening so the white reading
+ * keeps its contrast at the brightest phase.
+ *
+ * It is a *paint*, not a second moon: 0.55 at the centre falling to nothing by
+ * 46% of the disc, which is where the readout's box ends and the maria begin to
+ * read again. Without it the full face's highlands sit at 130 luma and the
+ * clock's own 4.5:1 floor is not met at the phone's smaller type.
+ */
+export const MOON_SCRIM_OPACITY = 0.55;
+
+/**
+ * How much of the sphere's own falloff is laid over the photograph: a radial
+ * shade from the light, so the limb turns away instead of ending as a cut-out
+ * poster of a moon. 0.55 is the fraction the old gradient contributed at the
+ * far edge; the photograph now supplies the detail, this supplies the volume.
+ */
+export const MOON_LIMB_SHADE = 0.55;
+
 /** The phase glyph's disc, in its own 24-unit canvas. */
 export const PHASE_RADIUS = 10;
 
