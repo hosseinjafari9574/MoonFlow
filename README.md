@@ -87,7 +87,7 @@ clock. Base colour rather than a full-moon photograph on purpose — a photograp
 carries the Sun's own shadows, which would fight the terminator this room moves
 across it. The image is built once by `npm run prepare:moon` and committed, so a
 checkout needs neither network nor a browser. Where it comes from, the
-projection, the five numbers that set its exposure, and what each one measures
+projection, the numbers that set its exposure, and what each one measures
 are in **[docs/moon.md](docs/moon.md)**.
 
 **Gibbous** — the session four-fifths run. Before this pass the dial's moon was
@@ -343,8 +343,10 @@ out of the DOM, reads their pixels back off screenshots, and compares both with
 what the source implies — the tick angles and lit count, where the arc stops,
 `MOON_LIGHT`'s night axis and travel, `--moon-dark`, and each glyph's lit area.
 It also reads the moon's *surface*: the texture is served, the lit face carries
-local terrain rather than a smooth fill, the night side stays under 30 luma, the
-far limb turns away, and the clock clears 7:1 over the scrim at full moon.
+local terrain rather than a smooth fill, the night side keeps its earthshine (a
+28–44 luma band with its own terrain, not a hole) and falls across it from 37 to
+26 luma as the ground turns away from Earth, the far limb turns away, and the
+clock clears 7:1 over the scrim at full moon.
 It starts a dev server itself, exits non-zero and lists every measurement that
 drifted, so a quarter-turn of the graduations or a token moved in one place
 fails the command rather than the design review. It also drives the whole

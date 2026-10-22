@@ -140,20 +140,72 @@ export const MOON_LIT_BRIGHTNESS = 0.62;
 export const MOON_LIT_CONTRAST = 1.08;
 
 /**
- * The night side is the same surface at 5% — *earthshine*, not a hole and not a
+ * The night side is the same surface at 13% — *earthshine*, not a hole and not a
  * second flat fill.
  *
- * The number is set by the room's own darkness rather than by taste: the disc
- * sits on `--moon-dark` (21 luma, the token the strip and the old body shared),
- * and the night face must stay under 30 or it stops reading as shadow. At the
- * albedo's mean, 5% lands the body near 29 and its brightest maria near 30 — a
- * silhouette with the faintest texture in it, which is what an earthlit moon
- * actually is at this distance.
+ * 5% was too little to survive a real display. The arithmetic was right — the
+ * albedo at a twentieth over `--moon-dark` (21 luma) lands the night face at 26 —
+ * but 26 luma is where a screen's own black point starts, so the maria and the
+ * highlands both flattened into one silhouette and the unlit half read as a cut
+ * hole rather than as a body turned away from the light. 13% puts the unlit half
+ * between 37 and 33 luma across its middle (0.56R to 0.72R of the radius), still
+ * well under half the lit face's 97, and its own detail survives the dim: about
+ * 0.5 local rms, against 0.27 at 5% (`moon/night-side-terrain`). It is still
+ * shadow, and the scrim under the clock is untouched. This is the exposure where
+ * the night faces the viewer; the mask below takes it down toward the limb.
  */
-export const MOON_NIGHT_OPACITY = 0.05;
+export const MOON_NIGHT_OPACITY = 0.13;
+
+/**
+ * A contrast lift on the night side, for the same reason the lit face has one:
+ * the maria are what make the earthlit half read as a moon instead of a grey
+ * wash, and a linear dim compresses exactly that difference. 1.15 is the step
+ * that survives 13% without turning the dark maria into patches of black.
+ */
+export const MOON_NIGHT_CONTRAST = 1.15;
 
 /** Desaturating the night keeps it from reading as a colour rather than shadow. */
 export const MOON_NIGHT_SATURATION = 0.55;
+
+/**
+ * How much of that earthshine survives at the limb: 0.66 of the middle's
+ * exposure, so the unlit half carries a gradient (37 → 26 luma across it) rather
+ * than one alpha from terminator to limb.
+ *
+ * Earth is in the viewer's direction — the near side is the side we see — so the
+ * moon's night face is *not* lit like the day face. The day face is lit by a Sun
+ * near the lower-left limb, which is why its highlight sits there; the night face
+ * is lit head-on by a full Earth behind the viewer, and a sphere lit head-on is
+ * brightest where its ground faces the light — the middle of the disc — and
+ * dimmer toward every limb, where the ground turns away from it. That is the
+ * difference between a body turned away from the Sun (bright middle, dark edge)
+ * and one lit by a second, much weaker source: the unlit half keeps a *shape* of
+ * its own instead of being one alpha over the whole area.
+ *
+ * 0.66 is where the fade reads without becoming a second terminator: the unlit
+ * half measures 36–37 luma at 0.56R and 26 at 0.86R, about eleven down across it,
+ * where the layer alone followed the limb shade to 29 (`moon/night-side-fade`).
+ * Deeper and
+ * the earthlit rim starts to look like a hole again; shallower and it is the flat
+ * exposure this replaced.
+ */
+export const MOON_NIGHT_FALLOFF = 0.66;
+
+/**
+ * The falloff as the night layer's own mask: a radial ramp about the disc's
+ * centre — the sub-Earth point — from no cut at the middle out to
+ * `MOON_NIGHT_FALLOFF` at the limb. White with alpha rather than a black
+ * gradient, so the values mean the same thing whether a browser reads the mask
+ * as alpha or as luminance. The intermediate stops are placed on the sphere's
+ * own curve (the cosine of the angle from the viewer falls slowly near the
+ * middle and steeply at the edge), not spread evenly over the radius.
+ */
+export const MOON_NIGHT_MASK = (() => {
+  const at = (t: number) => (1 - (1 - MOON_NIGHT_FALLOFF) * t).toFixed(3);
+  return `radial-gradient(circle closest-side at 50% 50%, rgba(255,255,255,1) 34%, rgba(255,255,255,${at(
+    0.18,
+  )}) 55%, rgba(255,255,255,${at(0.41)}) 74%, rgba(255,255,255,${at(1)}) 98%)`;
+})();
 
 /**
  * The scrim under the clock: a soft, centred darkening so the white reading

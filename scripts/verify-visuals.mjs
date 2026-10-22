@@ -107,6 +107,7 @@ function readSource() {
   const brightness = /MOON_LIT_BRIGHTNESS = ([\d.]+)/.exec(geometry);
   const contrast = /MOON_LIT_CONTRAST = ([\d.]+)/.exec(geometry);
   const nightOpacity = /MOON_NIGHT_OPACITY = ([\d.]+)/.exec(geometry);
+  const nightFalloff = /MOON_NIGHT_FALLOFF = ([\d.]+)/.exec(geometry);
   const scrim = /MOON_SCRIM_OPACITY = ([\d.]+)/.exec(geometry);
   const limb = /MOON_LIMB_SHADE = ([\d.]+)/.exec(geometry);
 
@@ -121,6 +122,7 @@ function readSource() {
     !brightness ||
     !contrast ||
     !nightOpacity ||
+    !nightFalloff ||
     !scrim ||
     !limb
   ) {
@@ -142,6 +144,7 @@ function readSource() {
       brightness: Number(brightness[1]),
       contrast: Number(contrast[1]),
       nightOpacity: Number(nightOpacity[1]),
+      nightFalloff: Number(nightFalloff[1]),
       scrim: Number(scrim[1]),
       limb: Number(limb[1]),
     },
@@ -460,6 +463,7 @@ function readFocusRoom() {
         url: textureMatch ? textureMatch[1] : null,
         filter: surfaceFilter,
         night: night ? getComputedStyle(night).opacity : null,
+        nightMask: night ? getComputedStyle(night).maskImage : null,
         scrimCentre: scrimCentre ? Number(scrimCentre[1]) : null,
         /* The far-limb shade, and that it rides inside the clipped lit layer. */
         limbShade: Number(/rgba\(2, 4, 9, ([\d.]+)\) 92%/.exec(gradient)?.[1]),
@@ -607,12 +611,73 @@ async function measurePixels(spec) {
      */
     const vx = -uy;
     const vy = ux;
+    /*
+     * How much terrain the unlit half still carries. The 3×3 means are taken
+     * across the whole night half (past the reading, inside the limb) and the
+     * spread is their p05–p95: a flat fill, or a night side dimmed until the
+     * albedo disappears, reads a couple of luma; earthshine reads tens.
+     */
+    const nightMeans = [];
+    for (let y = 0; y < h; y += 4) {
+      for (let x = 0; x < w; x += 4) {
+        const dx = (x + 0.5 - cx) / radius;
+        const dy = (y + 0.5 - cy) / radius;
+        const reach = Math.hypot(dx, dy);
+        /*
+         * Outside the scrim's reach (0.46R) and inside the limb's own light, so
+         * this measures terrain rather than the paint over the clock or the rim
+         * highlight.
+         */
+        if (reach > 0.86 || reach < 0.5) continue;
+        /*
+         * Well into the unlit half: a sample on the terminator would carry
+         * antialiased lit pixels and turn this into a phase measurement.
+         */
+        if (dx * ux + dy * uy > -0.4) continue;
+        const value = meanAt(x, y, 1);
+        if (value !== null) nightMeans.push(value);
+      }
+    }
+    nightMeans.sort((a, b) => a - b);
+    const nightPercentile = (fraction) =>
+      nightMeans[Math.floor(fraction * (nightMeans.length - 1))] ?? 0;
+    /*
+     * The photograph's own detail on that half, after the sphere's broad
+     * shading is subtracted: the same idea as the lit face's `textureRms`, and
+     * the number a flat fill cannot fake.
+     */
+    let nightResidual = 0;
+    let nightResidualCount = 0;
+    for (let y = 0; y < h; y += 2) {
+      for (let x = 0; x < w; x += 2) {
+        const dx = (x + 0.5 - cx) / radius;
+        const dy = (y + 0.5 - cy) / radius;
+        const reach = Math.hypot(dx, dy);
+        if (reach > 0.86 || reach < 0.5) continue;
+        if (dx * ux + dy * uy > -0.4) continue;
+        const value = lumaAt(x, y);
+        const local = meanAt(x, y, 1);
+        if (value === null || local === null) continue;
+        nightResidual += (value - local) ** 2;
+        nightResidualCount += 1;
+      }
+    }
     return {
       litSide: at(ux, uy, 0.72),
       nightSide: at(-ux, -uy, 0.72),
+      /*
+       * The same axis, inside and outside that sample: earthshine is lit by a
+       * full Earth in the viewer's direction, so it is brightest where the
+       * ground faces the viewer and dimmer at the limb. The pair is the fade —
+       * a night layer masked to one flat exposure moves neither end.
+       */
+      nightNear: at(-ux, -uy, 0.56),
+      nightFar: at(-ux, -uy, 0.86),
       litLimb: at(ux, uy, 0.88),
       nightLimb: at(-ux, -uy, 0.88),
       litPastCentre: at(vx, vy, 0.62),
+      nightSpread: nightPercentile(0.95) - nightPercentile(0.05),
+      nightRms: Math.sqrt(nightResidual / Math.max(1, nightResidualCount)),
       centre: at(0, 0, 0.1),
     };
   }
@@ -1172,6 +1237,45 @@ async function main() {
     near("moon/surface-brightness", brightness, source.surface.brightness, 0.001);
     near("moon/surface-contrast", contrast, source.surface.contrast, 0.001);
     near("moon/night-opacity", Number(moon.texture.night), source.surface.nightOpacity, 0.001);
+    /*
+     * And the mask that makes the night a surface lit by a second source rather
+     * than one alpha over the whole half: a radial ramp about the disc's centre
+     * (the sub-Earth point) ending at `MOON_NIGHT_FALLOFF`. Read off the DOM, so
+     * a night layer that lost the mask — or kept the shape with the depth edited
+     * in place — fails here rather than looking subtly flat in review.
+     */
+    const nightMask = moon.texture.nightMask || "";
+    /*
+     * The stops, not the prefix: browsers serialise a radial gradient's default
+     * shape keyword differently, and the claim here is the ramp — four stops
+     * that only ever come down, ending at the limb on the configured depth.
+     */
+    const maskStops = [...nightMask.matchAll(/(rgba?\(255, 255, 255[^)]*\))\s*([\d.]+)%/g)].map(
+      (match) => ({
+        alpha: match[1].startsWith("rgba(")
+          ? Number(match[1].slice(0, -1).split(",").pop())
+          : 1,
+        at: Number(match[2]),
+      }),
+    );
+    const maskRamp =
+      maskStops.length === 4 &&
+      maskStops.every((stop, index) => index === 0 || stop.alpha <= maskStops[index - 1].alpha) &&
+      maskStops[3].at >= 90;
+    record(
+      "moon/night-falloff",
+      nightMask !== "none" &&
+        maskRamp &&
+        Math.abs(maskStops[3].alpha - source.surface.nightFalloff) <= 0.005,
+      nightMask === "none"
+        ? "the night layer carries no mask — one flat exposure from terminator to limb"
+        : `night mask ${maskStops
+            .map((stop) => `${fmt(stop.alpha, 2)}@${fmt(stop.at, 0)}%`)
+            .join(" ")} (a monotone ramp ending at ${fmt(
+            source.surface.nightFalloff * 100,
+            0,
+          )}% of the middle's exposure)`,
+    );
     near("moon/scrim-opacity", moon.texture.scrimCentre, source.surface.scrim, 0.002);
     near("moon/limb-shade", moon.texture.limbShade, source.surface.limb, 0.002);
     record(
@@ -1262,10 +1366,38 @@ async function main() {
       light: source.light,
     });
     atLeast("moon/lit-side-above-night", moonPixels.litSide - moonPixels.nightSide, 4, " luma");
+    /*
+     * Earthshine, not a hole. The floor is what the last build failed: at 5%
+     * the night side sat at 26 and its own terrain flattened into the screen's
+     * black point. The ceiling is what keeps it shadow — the unlit half is the
+     * room's darkest large surface after the sky, and it must not become a
+     * second lamp behind the reading. 28–44 holds both, and the terrain check
+     * below says the surface inside that band is still a photograph.
+     */
     record(
-      "moon/night-side-dark",
-      moonPixels.nightSide <= 30,
-      `night side ${fmt(moonPixels.nightSide, 1)} luma, lit side ${fmt(moonPixels.litSide, 1)}`,
+      "moon/night-side-earthshine",
+      moonPixels.nightSide >= 28 && moonPixels.nightSide <= 44,
+      `night side ${fmt(moonPixels.nightSide, 1)} luma (28–44), lit side ${fmt(moonPixels.litSide, 1)}`,
+    );
+    record(
+      "moon/night-side-terrain",
+      moonPixels.nightRms >= 0.36,
+      `unlit half local rms ${fmt(moonPixels.nightRms, 2)} luma (the 5% night read 0.27; a flat fill is 0), p05–p95 ${fmt(moonPixels.nightSpread, 1)}`,
+    );
+    /*
+     * And it is not one exposure. Earth is in the viewer's direction, so the
+     * unlit half is a sphere lit head-on: brightest where the ground faces the
+     * viewer, dimmer at the limb where it turns away. The floor is the fade
+     * this pass added (`MOON_NIGHT_FALLOFF`); the ceiling keeps it a fade and
+     * not a second terminator, and `nightFar` has to stay earthlit, not black.
+     */
+    record(
+      "moon/night-side-fade",
+      moonPixels.nightNear - moonPixels.nightFar >= 3 &&
+        moonPixels.nightNear - moonPixels.nightFar <= 14 &&
+        moonPixels.nightFar >= 24,
+      `earthshine ${fmt(moonPixels.nightNear, 1)} luma at 0.56R → ${fmt(moonPixels.nightFar, 1)} at 0.86R ` +
+        `(fade ${fmt(moonPixels.nightNear - moonPixels.nightFar, 1)}; needs a 3–14 luma fall and an earthlit far end, not the 21 fill)`,
     );
     atLeast("moon/light-from-the-left", moonPixels.litLimb - moonPixels.nightLimb, 3, " luma");
     record(
@@ -1437,9 +1569,9 @@ async function main() {
       " luma",
     );
     record(
-      "moon-gibbous/night-side-dark",
-      gibbousPixels.nightSide <= 30,
-      `night side ${fmt(gibbousPixels.nightSide, 1)} luma, lit side ${fmt(gibbousPixels.litSide, 1)}`,
+      "moon-gibbous/night-side-earthshine",
+      gibbousPixels.nightSide >= 28 && gibbousPixels.nightSide <= 44,
+      `night side ${fmt(gibbousPixels.nightSide, 1)} luma (28–44), lit side ${fmt(gibbousPixels.litSide, 1)}`,
     );
     atLeast(
       "moon-gibbous/light-from-the-left",
@@ -1577,7 +1709,7 @@ async function main() {
     near("cycle/focus-start-angle", focusStart.phase.angle, axisAngle, 0.05, "°");
     record(
       "cycle/focus-start-dark",
-      focusStart.pixels.litSide <= 36 && focusStart.pixels.nightSide <= 30,
+      focusStart.pixels.litSide <= 52 && focusStart.pixels.nightSide <= 46,
       `lit side ${fmt(focusStart.pixels.litSide, 1)} luma, night side ${fmt(focusStart.pixels.nightSide, 1)} ` +
         `(earthlit surface varies a few luma across the disc, so both are ceilings)`,
     );
@@ -1707,8 +1839,8 @@ async function main() {
       "cycle/break-end-dark",
       endNearDrop >= 20 &&
         endFarDrop >= 4 &&
-        breakEnd.pixels.litSide <= 42 &&
-        breakEnd.pixels.nightSide <= 36,
+        breakEnd.pixels.litSide <= 56 &&
+        breakEnd.pixels.nightSide <= 48,
       `left ${fmt(breakStart.pixels.litSide, 1)} → ${fmt(breakEnd.pixels.litSide, 1)} (drop ${fmt(endNearDrop, 1)}), ` +
         `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(breakEnd.pixels.nightSide, 1)} (drop ${fmt(endFarDrop, 1)})`,
     );
@@ -1722,7 +1854,7 @@ async function main() {
     near("cycle/focus-return-angle", returned.phase.angle, axisAngle, 0.05, "°");
     record(
       "cycle/focus-return-dark",
-      returned.pixels.litSide <= 36 && returned.pixels.nightSide <= 30,
+      returned.pixels.litSide <= 52 && returned.pixels.nightSide <= 46,
       `lit side ${fmt(returned.pixels.litSide, 1)} luma, night side ${fmt(returned.pixels.nightSide, 1)}`,
     );
     await moveClock(0);

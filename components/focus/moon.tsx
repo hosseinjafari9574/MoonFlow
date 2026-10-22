@@ -9,6 +9,8 @@ import {
   MOON_LIMB_SHADE,
   MOON_LIT_BRIGHTNESS,
   MOON_LIT_CONTRAST,
+  MOON_NIGHT_CONTRAST,
+  MOON_NIGHT_MASK,
   MOON_NIGHT_OPACITY,
   MOON_NIGHT_SATURATION,
   MOON_SCRIM_OPACITY,
@@ -219,11 +221,19 @@ export function MoonBody({
       </svg>
 
       {/*
-       * The night side: the same photograph at 5%, which is what an earthlit
-       * moon looks like. It sits *under* the lit layer rather than being drawn
-       * by it, so the two are one surface at two exposures rather than a shape
-       * pasted onto a hole. The token beneath keeps the disc a body even where
-       * the texture is transparent at the corners.
+       * The night side: the same photograph at 13%, contrast-lifted so its
+       * maria survive the dim — what an earthlit moon looks like, rather than a
+       * hole where the light is not. It sits *under* the lit layer rather than
+       * being drawn by it, so the two are one surface at two exposures rather
+       * than a shape pasted onto a hole. The token beneath keeps the disc a body
+       * even where the texture is transparent at the corners.
+       *
+       * The mask is the second light the night face actually has: Earth sits in
+       * the viewer's direction, so the unlit half is a sphere lit head-on —
+       * brightest where the ground faces the viewer and dimmer toward the limb
+       * (`MOON_NIGHT_MASK`). Without it the night was one alpha from terminator
+       * to limb; with it the half turns away from Earth the way the lit half
+       * turns away from the Sun.
        */}
       <div
         data-part="night"
@@ -232,7 +242,9 @@ export function MoonBody({
           backgroundImage: `url("${MOON_TEXTURE_URL}")`,
           backgroundSize: "100% 100%",
           opacity: MOON_NIGHT_OPACITY,
-          filter: `saturate(${MOON_NIGHT_SATURATION})`,
+          filter: `saturate(${MOON_NIGHT_SATURATION}) contrast(${MOON_NIGHT_CONTRAST})`,
+          maskImage: MOON_NIGHT_MASK,
+          WebkitMaskImage: MOON_NIGHT_MASK,
         }}
       />
 
