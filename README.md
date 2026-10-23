@@ -44,102 +44,13 @@ Both pictures are `npm run shots`: a fixed day's work seeded into a headless
 Chrome and photographed, so they are regenerated rather than hand-taken. The
 room's clock is stopped at the 12:00 the card shows — entering Focus Mode starts
 the session — and the key hints have already faded, so two runs differ only
-where the app itself changed. The object-level shots below come from
-`npm run verify:visuals` in the same spirit.
+where the app itself changed.
 
-**The instrument** — a task card carrying its own Pomodoro dial. The mark's
-own composition — a graphite ring with a moon at its centre and one indigo dot
-for live state — is here at the card's size, not only as the header's small
-mark and the favicon.
-
-![The task card with its Pomodoro dial](docs/png/card.png)
-
-**[docs/mark.md](docs/mark.md)** is the measurement behind this: the ring's
-25 graduations at 14.4° steps with the lit arc ending on the last marked tip,
-the moon's terminator at 55° from the horizontal (the angle the light's night
-axis puts it at), and each phase glyph in the row below cut by the same great
-circle through the poles.
-
-**The cycle strip** — four small moons, one per session in the cycle. Crescent,
-half, gibbous, full. Each is a real phase, not a bite out of a disc: its dark
-side is the moon's own grey as a body in shadow — a hue-less step above the
-sky it sits on — so the unlit half reads as shadow rather than as a hole, and
-it needs no outline. The strip's terminator is an ellipse through both poles,
-the same shape the dial's moon uses, so the third glyph is legibly the step
-before full and the full moon at the end of the row is the one that buys the
-long break. Banking a session turns one of them amber.
-
-![The phase strip — four real moon phases](docs/png/strip.png)
-
-**The dial's moon** — a disc lit from the lower left, at full size inside Focus
-Mode's own instrument, where the clock reads across its face in mono while the
-seconds sit back. The lit fraction waxes exactly with the clock until the face
-is full as the time runs out; the moon's terminator is the same great circle
-the phase glyphs use. The same moon, the same lit region, the same
-terminator — three times: in the favicon, in the header's small mark, and here
-at full size.
-
-![Focus Mode's moon at full size, waxing](docs/png/moon.png)
-
-**Its surface is a photograph**, not a gradient: NASA's CGI Moon Kit base-colour
-map, reprojected orthogonally into a disc and dimmed until it sits under the
-clock. Base colour rather than a full-moon photograph on purpose — a photograph
-carries the Sun's own shadows, which would fight the terminator this room moves
-across it. The image is built once by `npm run prepare:moon` and committed, so a
-checkout needs neither network nor a browser. Where it comes from, the
-projection, the numbers that set its exposure, and what each one measures
-are in **[docs/moon.md](docs/moon.md)**.
-
-**Gibbous** — the session four-fifths run. Before this pass the dial's moon was
-a second disc of the moon's own dark sliding along the axis; that construction
-is exact up to half and cannot draw the fuller shape — an equal disc's edge
-bows the wrong way there, so the moon becomes a lens. The clip path replaced it,
-and `npm run verify:visuals` reads the terminator's waist, side and angle at
-both here and at a crescent to confirm it.
-
-![Gibbous moon — the shape the old construction could not draw](docs/png/moon-gibbous.png)
-
-**The cycle** — the whole focus → break → focus round trip. The moon fills
-from the light's side across focus and drains from that same side across the
-break, so the break's terminator is the focus's turned a half-turn: the two
-are point reflections of one another. A break that darkened from the opposite
-limb passes every single-phase check and fails here. The frames are sequenced to
-read as one continuous motion — dark, waxing, full, waning, dark again — so the
-moon reads as one motion across the round trip, not as four separate states.
-
-*Start of a focus session — the moon is a hairline crescent on its left limb.*
-
-![Cycle: focus starts on a hairline crescent](docs/png/cycle-focus-start.png)
-
-*Ten minutes in — the light has crossed toward the right, where the night side
- is the last of it to go.*
-
-![Cycle: waxing — light crossing toward the right](docs/png/cycle-focus-waxing.png)
-
-*The session ends and the break opens — the moon is full, and the darkening is
-still to come.*
-
-![Cycle: break opens on the full face](docs/png/cycle-break-start.png)
-
-*The break drains the moon from the light's side — the same side it filled
-from, so the darkening turns the terminator a half-turn.*
-
-![Cycle: waning — darkening from the light's side](docs/png/cycle-break-waning.png)
-
-*The break ends — dark again.*
-
-![Cycle: break ends dark](docs/png/cycle-break-end.png)
-
-*Back to focus — the round trip is complete.*
-
-![Cycle: back to a dark focus](docs/png/cycle-focus-return.png)
-
-*And a skip from mid-session lands on the break at once — the hand-off's
- hardest case, where a break that starts before the moon has finished turning
- would otherwise drain from the wrong limb. With the fix in place it still
- arrives at the turned path.*
-
-![Cycle: a skip lands on the break at once](docs/png/cycle-skip-break.png)
+The object-level shots (the card's dial, the phase strip, the moon and its
+cycle) are deliberately left out of this gallery: they document the instrument's
+geometry rather than how the app is used, and are verified by
+`npm run verify:visuals` instead. Their measurements live in
+[docs/mark.md](docs/mark.md) and [docs/moon.md](docs/moon.md).
 
 ## Stack
 
