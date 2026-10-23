@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 import { MoonPhaseMark } from "@/components/focus/moon";
@@ -53,6 +54,30 @@ export function CycleReadouts({
   streak: number;
 }) {
   const lit = Math.min(sessions + 1, longBreakAfter);
+
+  /*
+   * Banking a session moves the row on by one, and that step is the only news
+   * the strip ever carries. It gets one small pulse on the moon it lights — a
+   * scale and a brief bloom, 0.8s, once — so the cycle is seen to advance even
+   * while the hand-off is covering the room. It fires on growth only: the first
+   * render lights whatever it lights and must stay still, and a reset (which
+   * only clears the long-break counter) is not an advance.
+   *
+   * The mark is capped at the last one, so the fourth session pulses the full
+   * moon the cycle just reached rather than pointing at a moon that does not
+   * exist.
+   */
+  const previousSessions = useRef(sessions);
+  const [banked, setBanked] = useState<number | null>(null);
+  useEffect(() => {
+    const grew = sessions > previousSessions.current;
+    previousSessions.current = sessions;
+    if (!grew) return;
+    setBanked(Math.min(sessions, longBreakAfter - 1));
+    const timeout = window.setTimeout(() => setBanked(null), 800);
+    return () => window.clearTimeout(timeout);
+  }, [sessions, longBreakAfter]);
+
   return (
     <motion.div
       variants={focusItem}
@@ -79,23 +104,27 @@ export function CycleReadouts({
         aria-label={`${sessions} of ${longBreakAfter} focus ${sessionWord.toLowerCase()}s completed`}
       >
         {Array.from({ length: longBreakAfter }).map((_, index) => (
-          <MoonPhaseMark
+          <span
             key={index}
-            lit={(index + 1) / longBreakAfter}
-            /*
-             * Two states, not three: lit means reached, whether banked or in
-             * progress. A third tint for "this one is running" would have to be
-             * read against amber and grey at 14px, and the eyebrow above already
-             * names the session; the row only has to say how far the cycle has
-             * come.
-             */
-            className={cn(
-              "transition-[color,filter] duration-500",
-              index < lit
-                ? "text-achievement drop-shadow-[0_0_5px_rgba(233,184,114,0.55)]"
-                : "text-ivory/35",
-            )}
-          />
+            className={cn("inline-flex", banked === index && "bank-pop")}
+          >
+            <MoonPhaseMark
+              lit={(index + 1) / longBreakAfter}
+              /*
+               * Two states, not three: lit means reached, whether banked or in
+               * progress. A third tint for "this one is running" would have to be
+               * read against amber and grey at 14px, and the eyebrow above already
+               * names the session; the row only has to say how far the cycle has
+               * come.
+               */
+              className={cn(
+                "transition-[color,filter] duration-500",
+                index < lit
+                  ? "text-achievement drop-shadow-[0_0_5px_rgba(233,184,114,0.55)]"
+                  : "text-ivory/35",
+              )}
+            />
+          </span>
         ))}
       </div>
 

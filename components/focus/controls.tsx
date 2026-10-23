@@ -1,10 +1,10 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Check, Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { focusItem } from "@/lib/motion";
+import { EASE_OUT_EXPO, focusItem } from "@/lib/motion";
 
 /**
  * The controls: run or pause the session, complete the task, and the two quiet
@@ -70,19 +70,41 @@ export function FocusControls({
       <Button
         variant={isFocus ? "default" : "ivory"}
         size="lg"
-        className="w-full sm:w-auto sm:min-w-[164px]"
+        /*
+         * The press is the one thing the shared Button does not own beyond its
+         * colour change: a 1.5% dip under the finger, on the same 200ms
+         * transition the hover lift already uses. Enough that the control feels
+         * pushed, not enough to move the row.
+         */
+        className="w-full transition-transform active:scale-[0.985] sm:w-auto sm:min-w-[164px]"
         onClick={onToggle}
         aria-label={running ? "Pause timer" : fresh ? "Start timer" : "Resume timer"}
       >
-        {running ? (
-          <>
-            <Pause className="size-4" /> Pause
-          </>
-        ) : (
-          <>
-            <Play className="size-4" /> {fresh ? "Start" : "Resume"}
-          </>
-        )}
+        {/*
+         * The icon is the phase of the control, so it turns over rather than
+         * being swapped: Play and Pause trade places through a 0.18s fade and a
+         * slight tilt. Both sit in the same 16px box, absolutely, so the label
+         * beside them never shifts while the pair is in flight.
+         */}
+        <span className="relative grid size-4 shrink-0 place-items-center" aria-hidden>
+          <AnimatePresence initial={false}>
+            <motion.span
+              key={running ? "pause" : "play"}
+              className="absolute inset-0 grid place-items-center"
+              initial={{ opacity: 0, scale: 0.6, rotate: -24 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0.6, rotate: 24 }}
+              transition={{ duration: 0.18, ease: EASE_OUT_EXPO }}
+            >
+              {running ? (
+                <Pause className="size-4" />
+              ) : (
+                <Play className="size-4" />
+              )}
+            </motion.span>
+          </AnimatePresence>
+        </span>
+        {running ? "Pause" : fresh ? "Start" : "Resume"}
       </Button>
 
       <Button

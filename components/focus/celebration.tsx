@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check } from "lucide-react";
 
 import { CELEBRATION_SPARKS } from "@/components/focus/geometry";
+import { EASE_OUT_EXPO } from "@/lib/motion";
 
 /**
  * Completing the task itself, on the dial.
@@ -12,7 +13,14 @@ import { CELEBRATION_SPARKS } from "@/components/focus/geometry";
  * orchestrator keeps it mounted for — the moment after a task is finished is the
  * one place in Focus Mode where a flourish is the point.
  */
-export function Celebration({ show }: { show: boolean }) {
+export function Celebration({
+  show,
+  reduceMotion,
+}: {
+  show: boolean;
+  /** The tick stays — it is the confirmation. The burst around it does not. */
+  reduceMotion: boolean;
+}) {
   return (
     <AnimatePresence>
       {show && (
@@ -23,37 +31,39 @@ export function Celebration({ show }: { show: boolean }) {
           exit={{ opacity: 0, transition: { duration: 0.3 } }}
           aria-hidden
         >
-          {[0, 0.16].map((delay) => (
-            <motion.span
-              key={delay}
-              className="absolute size-44 rounded-full border-2 border-ivory/70"
-              initial={{ scale: 0.35, opacity: 0.9 }}
-              animate={{ scale: 2, opacity: 0 }}
-              transition={{ duration: 1.05, delay, ease: "easeOut" }}
-            />
-          ))}
-          {CELEBRATION_SPARKS.map((spark) => (
-            <motion.span
-              key={spark.id}
-              className="absolute size-1.5 rounded-full bg-ivory"
-              initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
-              animate={{
-                x: spark.x,
-                y: spark.y,
-                opacity: 0,
-                scale: 0.4,
-              }}
-              transition={{
-                duration: 0.9,
-                delay: 0.05 + spark.delay,
-                ease: "easeOut",
-              }}
-            />
-          ))}
+          {!reduceMotion &&
+            [0, 0.16].map((delay) => (
+              <motion.span
+                key={delay}
+                className="absolute size-44 rounded-full border-2 border-ivory/70"
+                initial={{ scale: 0.35, opacity: 0.9 }}
+                animate={{ scale: 2, opacity: 0 }}
+                transition={{ duration: 1.05, delay, ease: EASE_OUT_EXPO }}
+              />
+            ))}
+          {!reduceMotion &&
+            CELEBRATION_SPARKS.map((spark) => (
+              <motion.span
+                key={spark.id}
+                className="absolute size-1.5 rounded-full bg-ivory"
+                initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+                animate={{
+                  x: spark.x,
+                  y: spark.y,
+                  opacity: 0,
+                  scale: 0.4,
+                }}
+                transition={{
+                  duration: 0.9,
+                  delay: 0.05 + spark.delay,
+                  ease: EASE_OUT_EXPO,
+                }}
+              />
+            ))}
           <motion.span
             className="absolute grid size-16 place-items-center rounded-full bg-ivory text-[#0a0a0b] shadow-[0_18px_50px_-14px_rgba(232,226,214,0.85)]"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: [0, 1.14, 1], opacity: 1 }}
+            initial={reduceMotion ? { opacity: 0 } : { scale: 0, opacity: 0 }}
+            animate={reduceMotion ? { opacity: 1 } : { scale: [0, 1.14, 1], opacity: 1 }}
             exit={{
               scale: 0.7,
               opacity: 0,

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { Celebration } from "@/components/focus/celebration";
 import { HALO_AIR, moonGeometry, moonPhaseProgress } from "@/components/focus/geometry";
@@ -162,15 +162,17 @@ export function FocusInstrument({
       <SatelliteOrbit tone={tone} toneKey={toneKey} ringSize={ringSize} />
 
       {/* One-shot shockwave whenever the session phase changes */}
-      <motion.span
-        key={`shock-${toneKey}`}
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-full border"
-        style={{ borderColor: `rgba(${tone.rgb},0.45)` }}
-        initial={{ scale: 0.78, opacity: 0.6 }}
-        animate={{ scale: 1.32, opacity: 0 }}
-        transition={{ duration: 1.2, ease: "easeOut" }}
-      />
+      {!reduceMotion && (
+        <motion.span
+          key={`shock-${toneKey}`}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-full border"
+          style={{ borderColor: `rgba(${tone.rgb},0.45)` }}
+          initial={{ scale: 0.78, opacity: 0.6 }}
+          animate={{ scale: 1.32, opacity: 0 }}
+          transition={{ duration: 1.2, ease: EASE_OUT_EXPO }}
+        />
+      )}
 
       {/*
        * The dial, drawn with the app's own ring. The arc is a little thinner
@@ -186,16 +188,36 @@ export function FocusInstrument({
         ticks={{ total: minutes, majorEvery: 5 }}
       >
         <div className="grid place-items-center gap-1.5">
-          <span className="text-micro font-semibold uppercase tracking-[0.2em] text-ivory/70">
-            {/* A clock that has never run is *ready*, not paused. */}
-            {running ? "Remaining" : fresh ? "Ready" : "Paused"}
+          {/*
+           * The state word turns over instead of being retyped: both readings
+           * share one grid cell, so the label crossfades in place and the clock
+           * under it does not move by a pixel.
+           */}
+          <span className="grid h-4 place-items-center text-micro font-semibold uppercase tracking-[0.2em] text-ivory/70">
+            <AnimatePresence initial={false}>
+              <motion.span
+                key={running ? "remaining" : fresh ? "ready" : "paused"}
+                className="col-start-1 row-start-1"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.16, ease: EASE_OUT_EXPO }}
+              >
+                {/* A clock that has never run is *ready*, not paused. */}
+                {running ? "Remaining" : fresh ? "Ready" : "Paused"}
+              </motion.span>
+            </AnimatePresence>
           </span>
           <motion.span
             key={mode}
             role="timer"
-            initial={{ opacity: 0, y: 8, scale: 0.94 }}
+            initial={
+              reduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: 8, scale: 0.94 }
+            }
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
+            transition={{ duration: reduceMotion ? 0 : 0.32, ease: EASE_OUT_EXPO }}
             /*
              * Sized from the *disc* it is read inside, a fifth of the moon's own
              * diameter, rather than from the ring (see `moonGeometry`). At a
@@ -217,7 +239,7 @@ export function FocusInstrument({
         </div>
       </ProgressRing>
 
-      <Celebration show={celebrating} />
+      <Celebration show={celebrating} reduceMotion={reduceMotion} />
     </motion.div>
   );
 }

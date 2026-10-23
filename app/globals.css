@@ -586,6 +586,33 @@
   animation: pulse-soft 2.4s ease-in-out infinite;
 }
 
+/*
+ * A banked session's step in the cycle strip.
+ *
+ * Scale and brightness only, on a 14px mark, once: the row's newest lit moon
+ * blooms for 0.8s as the cycle moves on. It is the one flourish on the strip —
+ * the colours themselves still cross-fade through the 500ms transition above,
+ * so the pulse only says *when*, not *what*.
+ */
+@keyframes bank-pop {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  35% {
+    transform: scale(1.18);
+    filter: brightness(1.45);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+.bank-pop {
+  animation: bank-pop 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

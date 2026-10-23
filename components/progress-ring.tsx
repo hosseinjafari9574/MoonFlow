@@ -38,7 +38,6 @@ export function ProgressRing({
   const offset = circumference * (1 - clamped);
   const gradientId = `ring-grad-${tone}`;
   const colors = TONES[tone];
-
   const tickCount = ticks?.total ?? 0;
   const majorEvery = ticks?.majorEvery ?? 5;
   /*
@@ -72,6 +71,13 @@ export function ProgressRing({
         viewBox={`0 0 ${size} ${size}`}
       >
         <defs>
+          {/*
+           * Bounding-box units, deliberately: this component renders on the
+           * card and again in the room, and the id repeats. A user-space
+           * gradient would be resolved against whichever instance owns the
+           * first id in the document, which paints the bigger ring with the
+           * smaller one's coordinates.
+           */}
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop
               offset="0%"
@@ -146,6 +152,26 @@ export function ProgressRing({
           stroke="rgba(244,241,234,0.07)"
           strokeWidth={strokeWidth}
         />
+        {/*
+         * The light's leading edge at twelve o'clock. It is a zero-length
+         * dash pinned at the path's start, painted in the arc's own gradient
+         * so no seam can show: a single dash can only carry a round cap at its
+         * end, so the arc used to begin with a flat cut while its other end
+         * was round — it must come before the arc in paint order (the visual
+         * harness reads the *last* gradient-stroked circle as the arc).
+         */}
+        {clamped > 0.004 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={`url(#${gradientId})`}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={`0.01 ${circumference}`}
+          />
+        )}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -163,6 +189,19 @@ export function ProgressRing({
             } as CSSProperties
           }
         />
+        {/*
+         * The light's leading edge at twelve o'clock. A single dash that starts
+         * before the path can only carry a round cap at its *end*, so the arc
+         * used to begin with a flat cut while its other end was round — one end
+         * of the same stroke finished two different ways.
+         *
+         * A zero-length dash pinned at the path's start paints a round cap
+         * there, in the arc's *own* gradient, so the two ends finally finish the
+         * same way and the cap cannot seam against the arc it joins. (A filled
+         * disc in a mixed solid colour did seam: SVG interpolates the ramp per
+         * pixel, and a solid that only approximates the colour at that angle
+         * shows where it ends.)
+         */}
       </svg>
 
       {/*
@@ -186,17 +225,32 @@ export function ProgressRing({
           }}
         >
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0">
+            <defs>
+              {/*
+               * The comet's atmosphere, as a falloff rather than a disc. It
+               * used to be a flat 35%-opacity circle with a hard rim, nearly
+               * twice the stroke's radius, which read as a bulb snapped onto
+               * the arc instead of light around the dot. The radius stays close
+               * to the stroke: past roughly one stroke's width the halo starts
+               * reading as its own object beside the arc rather than as the
+               * arc's end.
+               */}
+              <radialGradient id={`comet-glow-${tone}`}>
+                <stop offset="0%" stopColor={colors.solid} stopOpacity="0.5" />
+                <stop offset="45%" stopColor={colors.solid} stopOpacity="0.16" />
+                <stop offset="100%" stopColor={colors.solid} stopOpacity="0" />
+              </radialGradient>
+            </defs>
             <circle
               cx={size / 2}
               cy={size / 2 - radius}
-              r={strokeWidth / 2 + 3.5}
-              fill={colors.solid}
-              opacity={0.35}
+              r={strokeWidth * 0.95}
+              fill={`url(#comet-glow-${tone})`}
             />
             <circle
               cx={size / 2}
               cy={size / 2 - radius}
-              r={Math.max(1.2, strokeWidth / 2 - 0.5)}
+              r={Math.max(1.1, strokeWidth * 0.34)}
               fill="#fffdf8"
               opacity={0.95}
             />

@@ -15,7 +15,7 @@ import { useRingSize } from "@/hooks/use-ring-size";
 import { currentStreak, getDay, sortTasks } from "@/lib/activity";
 import { PRIORITY_META, TIMER_PRESETS, modeMeta } from "@/lib/constants";
 import { formatClock } from "@/lib/format";
-import { EASE_OUT_EXPO, focusShell, focusStage } from "@/lib/motion";
+import { EASE_OUT_EXPO, EASE_SOFT, focusShell, focusStage } from "@/lib/motion";
 import { toggleTaskWithFeedback } from "@/lib/task-actions";
 import { advanceFocus, getProgress } from "@/lib/timer-actions";
 import { toneForMode, toneKeyForMode } from "@/lib/tone";
@@ -364,10 +364,14 @@ export function FocusMode() {
            * hairline at its leading edge — hold while the lens settles, then
            * lift away.
            */}
-          <ArrivalVeils />
+          <ArrivalVeils reduceMotion={Boolean(reduceMotion)} />
 
           {/* One pass of light as the veils lift — and on every phase change. */}
-          <ArrivalSweep toneKey={toneKey} isFocus={isFocus} />
+          <ArrivalSweep
+            toneKey={toneKey}
+            isFocus={isFocus}
+            reduceMotion={Boolean(reduceMotion)}
+          />
 
           {/* The session — three rows, the middle one owns the slack. */}
           <motion.div
@@ -400,9 +404,25 @@ export function FocusMode() {
                   <motion.span
                     key={`phase-${toneKey}`}
                     initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.34, delay: 0.3, ease: EASE_OUT_EXPO }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      transition: { duration: 0.34, delay: 0.3, ease: EASE_OUT_EXPO },
+                    }}
+                    /*
+                     * The exit is quick and has no delay of its own: the enter
+                     * delay is the arrival's choreography (it waits for the room
+                     * to settle), but a hand-off must not hold the old line on
+                     * screen while it waits. Framer used to inherit the 0.3s
+                     * delay through the shared `transition`, so a phase change
+                     * spent a third of a second fading text that was already gone
+                     * in every other sense.
+                     */
+                    exit={{
+                      opacity: 0,
+                      y: -10,
+                      transition: { duration: 0.16, ease: EASE_SOFT },
+                    }}
                     className={cn(
                       "text-micro font-semibold uppercase tracking-[0.14em] [@media(max-height:520px)]:hidden sm:tracking-[0.22em]",
                       isFocus
@@ -424,9 +444,16 @@ export function FocusMode() {
                   <motion.h1
                     key={task.id}
                     initial={{ opacity: 0, y: 14 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -14 }}
-                    transition={{ duration: 0.42, delay: 0.4, ease: EASE_OUT_EXPO }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      transition: { duration: 0.42, delay: 0.4, ease: EASE_OUT_EXPO },
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -14,
+                      transition: { duration: 0.18, ease: EASE_SOFT },
+                    }}
                     className="line-clamp-2 max-w-[22ch] text-balance text-[clamp(1.5rem,calc(3.2vh_+_1rem),2.9rem)] font-medium leading-[1.1] tracking-[-0.015em] text-white/95"
                   >
                     {task.title}

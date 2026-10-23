@@ -64,7 +64,7 @@ export function PhaseHandoff({
             }}
             initial={{ scale: 0.3, opacity: 0.85 }}
             animate={{ scale: 4.2, opacity: 0 }}
-            transition={{ duration: 1.3, ease: "easeOut" }}
+            transition={{ duration: 1.3, ease: EASE_OUT_EXPO }}
           />
           {CELEBRATION_SPARKS.slice(0, 10).map((spark) => (
             <motion.span
@@ -78,7 +78,7 @@ export function PhaseHandoff({
               transition={{
                 duration: 1,
                 delay: 0.06 + spark.delay,
-                ease: "easeOut",
+                ease: EASE_OUT_EXPO,
               }}
             />
           ))}

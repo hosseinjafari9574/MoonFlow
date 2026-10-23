@@ -24,7 +24,14 @@ const VEIL_TRANSITION = {
   ease: [EASE_OUT_EXPO, EASE_IN_OUT, EASE_OUT_EXPO],
 };
 
-export function ArrivalVeils() {
+export function ArrivalVeils({ reduceMotion }: { reduceMotion: boolean }) {
+  /*
+   * The veils are decoration around the arrival — the stage's own rise and the
+   * room's fade already say the overlay is here — so a user who asked the system
+   * for less motion gets none of them. The CSS reduced-motion rule cannot reach
+   * a Framer keyframe tween; this is the one place that has to say so itself.
+   */
+  if (reduceMotion) return null;
   return (
     <div
       aria-hidden
@@ -49,10 +56,14 @@ export function ArrivalVeils() {
 export function ArrivalSweep({
   toneKey,
   isFocus,
+  reduceMotion,
 }: {
   toneKey: string;
   isFocus: boolean;
+  reduceMotion: boolean;
 }) {
+  /* Same rule as the veils: a pass of light is the definition of optional. */
+  if (reduceMotion) return null;
   return (
     <motion.span
       key={`sweep-${toneKey}`}
