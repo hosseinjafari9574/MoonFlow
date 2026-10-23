@@ -6,6 +6,7 @@ import {
   MOON_DARK,
   MOON_GLYPH,
   MOON_LIGHT,
+  MOON_LIGHT_TURNED,
   MOON_LIMB_SHADE,
   MOON_LIT_BRIGHTNESS,
   MOON_LIT_CONTRAST,
@@ -197,6 +198,13 @@ export function MoonBody({
     };
   }, [flip, shownFlip, reduceMotion]);
 
+  /*
+   * The light turns with the phase. A break's lit half is a point reflection,
+   * so its light is one too (`MOON_LIGHT_TURNED`); with the highlight and the
+   * limb shade left where focus drew them, the rim sat on the unlit crescent
+   * and the disc read as lit from two sides at once.
+   */
+  const light = shownFlip ? MOON_LIGHT_TURNED : MOON_LIGHT;
   const { angle } = phaseGeometry(shownLit);
   return (
     <div
@@ -276,7 +284,7 @@ export function MoonBody({
           data-part="shade"
           className="absolute inset-0"
           style={{
-            background: `radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, rgba(236,240,255,0.055), rgba(236,240,255,0) 46%), radial-gradient(circle at ${MOON_LIGHT.x}% ${MOON_LIGHT.y}%, transparent 34%, rgba(2,4,9,${MOON_LIMB_SHADE}) 92%)`,
+            background: `radial-gradient(circle at ${light.x}% ${light.y}%, rgba(236,240,255,0.055), rgba(236,240,255,0) 46%), radial-gradient(circle at ${light.x}% ${light.y}%, transparent 34%, rgba(2,4,9,${MOON_LIMB_SHADE}) 92%)`,
           }}
         />
       </div>
@@ -314,8 +322,16 @@ export function MoonBody({
  * at `{ x: 23, y: 65.5 }` (`2px -0.7px` and `-22px 13px`) and at
  * `{ x: 25, y: 71 }` (`2px -1px` and `-21px 17px`), scaled by where the light
  * moved to: the same distance, at the angle between those.
+ *
+ * A break turns both by 180°: its phase is a point reflection, so the light is
+ * one too (`MOON_LIGHT_TURNED`) and the rim lands on the lit limb. Without it
+ * the rim stayed on the lower-left while the lit lune moved to the upper-right,
+ * and a 2px cream line on the darkest part of the disc is what a scratch looks
+ * like, not an edge.
  */
-export function MoonLimb({ inset }: { inset: number }) {
+export function MoonLimb({ inset, flip = false }: { inset: number; flip?: boolean }) {
+  /* Both light-bearing shadows turn with the face they belong to. */
+  const turn = flip ? -1 : 1;
   return (
     <div
       aria-hidden
@@ -328,8 +344,7 @@ export function MoonLimb({ inset }: { inset: number }) {
          * the side the light comes from, and the falloff that turns the disc
          * into a sphere rather than a circle of flat colour.
          */
-        boxShadow:
-          "0 0 0 1px rgba(244,241,234,0.035), inset 0 0 0 1px rgba(244,241,234,0.07), inset 2px -0.9px 0 rgba(244,241,234,0.19), inset -21px 15px 62px rgba(0,0,0,0.6)",
+        boxShadow: `0 0 0 1px rgba(244,241,234,0.035), inset 0 0 0 1px rgba(244,241,234,0.07), inset ${2 * turn}px ${-0.9 * turn}px 0 rgba(244,241,234,0.19), inset ${-21 * turn}px ${15 * turn}px 62px rgba(0,0,0,0.6)`,
       }}
     />
   );

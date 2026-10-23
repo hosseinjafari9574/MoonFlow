@@ -29,7 +29,10 @@
  *           angle with the light's axis; the disc's fill with `--moon-dark`;
  *           and the pixels are sampled on both sides of the terminator and along
  *           both limbs. The same is read once more on a gibbous session, where
- *           the old offset-disc construction could only draw a lens.
+ *           the old offset-disc construction could only draw a lens, and the
+ *           night side's earthshine band and its fade are read again on the
+ *           desktop's largest disc — on a crescent, where the 0.56R probe is
+ *           inside the unlit face.
  *
  *   strip   the four phases. Each mask's rotation must be the night axis from
  *           `geometry.ts` and each terminator's waist the one `|2k − 1|` gives;
@@ -110,6 +113,12 @@ function readSource() {
   const nightFalloff = /MOON_NIGHT_FALLOFF = ([\d.]+)/.exec(geometry);
   const scrim = /MOON_SCRIM_OPACITY = ([\d.]+)/.exec(geometry);
   const limb = /MOON_LIMB_SHADE = ([\d.]+)/.exec(geometry);
+  /*
+   * The disc's inset as a share of the dial. The room's moon ÷ dial is checked
+   * from this rather than from a copied 80%, so shrinking the inset is a change
+   * the check sees, not one it silently inherits.
+   */
+  const moonInset = /const inset = Math\.round\(ringSize \* ([\d.]+)\)/.exec(geometry);
 
   if (
     !light ||
@@ -124,7 +133,8 @@ function readSource() {
     !nightOpacity ||
     !nightFalloff ||
     !scrim ||
-    !limb
+    !limb ||
+    !moonInset
   ) {
     throw new Error(
       "could not read the instrument's own numbers out of components/focus/geometry.ts, " +
@@ -140,6 +150,7 @@ function readSource() {
     moonDark: dark[1],
     moonGlyph: glyph[1],
     textureUrl: textureUrl[1],
+    moonInset: Number(moonInset[1]),
     surface: {
       brightness: Number(brightness[1]),
       contrast: Number(contrast[1]),
@@ -419,6 +430,20 @@ function readFocusRoom() {
   const textureMatch = surface
     ? /url\("([^"]+)"\)/.exec(getComputedStyle(surface).backgroundImage)
     : null;
+  /*
+   * The limb is a sibling of the disc, not a part of it: the two shadows that
+   * carry the light (the 2px rim and the 62px far-limb falloff) are its own.
+   */
+  const rimShadow = instrument
+    ? getComputedStyle(
+        [...instrument.children].find(
+          (element) =>
+            element.getAttribute("aria-hidden") !== null &&
+            getComputedStyle(element).boxShadow.includes("inset"),
+        ) ?? instrument,
+      ).boxShadow
+    : "";
+  const rimOffsets = /rgba\(244, 241, 234, 0\.19\) (-?[\d.]+)px (-?[\d.]+)px/.exec(rimShadow);
   const surfaceFilter = surface ? getComputedStyle(surface).filter : "";
   const path = clipPath?.getAttribute("d") ?? "";
   const terminatorArc = /A ([\d.]+) 0\.5 0 0 ([01]) 0\.5 0/.exec(path);
@@ -459,6 +484,7 @@ function readFocusRoom() {
       box: disc ? { x: disc.x, y: disc.y, w: disc.width, h: disc.height } : null,
       light: at ? { x: Number(at[1]), y: Number(at[2]) } : null,
       fill: moon ? getComputedStyle(moon).backgroundColor : null,
+      rim: rimOffsets ? { x: Number(rimOffsets[1]), y: Number(rimOffsets[2]) } : null,
       texture: {
         url: textureMatch ? textureMatch[1] : null,
         filter: surfaceFilter,
@@ -1420,7 +1446,7 @@ async function main() {
     /*
      * The phone capture is the *level* check, not the texture one: at the 3×
      * device pixel ratio the browser's gradient dithering sits at about the size
-     * of the albedo's own fine detail (a 278px disc is 834px of screenshot), so
+     * of the albedo's own fine detail (a 230px disc is 1380px of screenshot), so
      * a local-RMS reading there cannot tell a photograph from a flat fill. The
      * desktop pass below is the one that measures terrain.
      */
@@ -1517,6 +1543,40 @@ async function main() {
     same("strip/lit-through-current", warmGlyphs, Math.min(SESSIONS + 1, source.cycle));
 
     /*
+     * The night side on the largest instrument, on the same crescent the phone
+     * is measured on. The earthshine fade is a property of the unlit face, and
+     * its 0.56R probe stops being inside that face before the gibbous phase used
+     * for the desktop surface pass: at 80% lit the terminator is already 0.6R
+     * across the axis, so 0.56R reads lit surface (63 luma against the night's
+     * 37). Read it here, before the gibbous seed, with the phone's
+     * own sampler and thresholds — the fade is one claim at two sizes.
+     */
+    await openRoom(1280, 900, 2);
+    const wideNight = await inPage(session, readFocusRoom);
+    if (!wideNight?.moon.box) throw new Error("the desktop moon did not render for the night check");
+    console.log(`\nmoon — desktop night side, ring ${fmt(wideNight.dial.box.w, 0)}px\n`);
+    const wideNightShot = await capture("moon-desktop-night.png", wideNight.moon.box, 2);
+    const wideNightPixels = await inPage(session, measurePixels, {
+      kind: "moon",
+      shot: wideNightShot,
+      light: source.light,
+    });
+    record(
+      "desktop/night-side-earthshine",
+      wideNightPixels.nightSide >= 28 && wideNightPixels.nightSide <= 44,
+      `night side ${fmt(wideNightPixels.nightSide, 1)} luma (28–44), lit side ${fmt(wideNightPixels.litSide, 1)}`,
+    );
+    record(
+      "desktop/night-side-fade",
+      wideNightPixels.nightNear - wideNightPixels.nightFar >= 3 &&
+        wideNightPixels.nightNear - wideNightPixels.nightFar <= 14 &&
+        wideNightPixels.nightFar >= 24,
+      `earthshine ${fmt(wideNightPixels.nightNear, 1)} luma at 0.56R → ${fmt(wideNightPixels.nightFar, 1)} at 0.86R ` +
+        `(fade ${fmt(wideNightPixels.nightNear - wideNightPixels.nightFar, 1)}), ` +
+        `${fmt(wideNight.moon.box.w, 0)}px disc`,
+    );
+
+    /*
      * The gibbous half of the session, where the old offset-disc construction
      * failed: a second disc's edge cannot bow the right way past half, so it
      * drew a lens instead of a moon. Seed a session four fifths run and read
@@ -1588,17 +1648,23 @@ async function main() {
 
     /*
      * The same disc at the largest size the room draws — the ring's own cap, 384,
-     * which is the desktop instrument and a 307px disc. The surface has to hold at
-     * both ends: a texture that reads at 278px must not alias at 307, and the
-     * clock's scrim must still hold the reading at a disc where the type is a
-     * fifth of it. The phase is the seeded gibbous, so the clock sits on lit
-     * surface rather than near a terminator.
+     * which is the desktop instrument and a 322px disc. The surface has to hold at
+     * both ends: a texture that reads at 230px (the phone's disc) must not alias
+     * at 322, and the clock's scrim must still hold the reading at a disc where
+     * the type is a fifth of it. The phase is the seeded gibbous, so the clock
+     * sits on lit surface rather than near a terminator.
      */
     await openRoom(1280, 900, 2);
     const wide = await inPage(session, readFocusRoom);
     if (!wide?.moon.box) throw new Error("the desktop moon did not render");
     console.log(`\nmoon — desktop, ring ${fmt(wide.dial.box.w, 0)}px\n`);
-    near("desktop/disc-size", wide.moon.box.w, wide.dial.box.w * 0.8, 3, "px");
+    near(
+      "desktop/disc-size",
+      wide.moon.box.w,
+      wide.dial.box.w * (1 - 2 * source.moonInset),
+      3,
+      "px",
+    );
     const wideShot = await capture("moon-desktop.png", wide.moon.box, 2);
     const wideSurface = await inPage(session, measurePixels, {
       kind: "surface",
@@ -1689,7 +1755,14 @@ async function main() {
         shot,
         light: source.light,
       });
-      return { phase: roomNow.moon.phase, dial: roomNow.dial, pixels, shot };
+      return {
+        phase: roomNow.moon.phase,
+        light: roomNow.moon.light,
+        rim: roomNow.moon.rim,
+        dial: roomNow.dial,
+        pixels,
+        shot,
+      };
     };
 
     /*
@@ -1761,6 +1834,23 @@ async function main() {
       `lit side ${fmt(breakStart.pixels.litSide, 1)} luma, night side ${fmt(breakStart.pixels.nightSide, 1)} (both lit)`,
     );
     /*
+     * The body's light turns with the phase. The break's lit lune is on the
+     * upper-right, so the rim and the limb shade belong there too — the point
+     * reflection of the focus moon's. A rim left on the lower-left sits on the
+     * half the break has just darkened, where a 2px cream line is the brightest
+     * thing on the disc and reads as a scratch beside it rather than its edge.
+     */
+    record(
+      "cycle/break-light-turned",
+      breakStart.light?.x === 100 - (moon.light?.x ?? NaN) &&
+        breakStart.light?.y === 100 - (moon.light?.y ?? NaN) &&
+        breakStart.rim?.x === -(moon.rim?.x ?? NaN) &&
+        breakStart.rim?.y === -(moon.rim?.y ?? NaN),
+      `the body's light is at ${breakStart.light?.x}% ${breakStart.light?.y}% with its rim at ` +
+        `${breakStart.rim?.x}px ${breakStart.rim?.y}px (focus: ${moon.light?.x}% ${moon.light?.y}%, ` +
+        `${moon.rim?.x}px ${moon.rim?.y}px)`,
+    );
+    /*
      * Full moon is the brightest surface the reading ever sits on, so it is where
      * the scrim has to hold the clock's contrast. The bar is 7:1 — WCAG AAA — not
      * the 3:1 a display-size number would technically need, because the reading is
@@ -1806,11 +1896,22 @@ async function main() {
     near("cycle/break-waning-angle", waning.phase.angle, axisAngle + 180, 0.05, "°");
     const waningNearDrop = breakStart.pixels.litSide - waning.pixels.litSide;
     const waningFarDrift = Math.abs(breakStart.pixels.nightSide - waning.pixels.nightSide);
+    /*
+     * The left starts on the far limb, not on the open lit face: the break's
+     * light is the point reflection of focus's, so it comes from the upper
+     * right and the lower-left edge is already under the far-limb shade at the
+     * full face (52 against the lit 128). The drop is therefore measured from a
+     * shaded start — about 17 luma here — and the direction is also carried by
+     * the two sides' separation, which only widens as the darkness enters.
+     */
     record(
       "cycle/break-waning-dark-from-the-left",
-      waningNearDrop >= 20 && waningFarDrift <= 8,
+      waningNearDrop >= 10 &&
+        waningFarDrift <= 8 &&
+        waning.pixels.nightSide - waning.pixels.litSide >= 40,
       `left ${fmt(breakStart.pixels.litSide, 1)} → ${fmt(waning.pixels.litSide, 1)} (drop ${fmt(waningNearDrop, 1)}), ` +
-        `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(waning.pixels.nightSide, 1)} (held ${fmt(waningFarDrift, 1)})`,
+        `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(waning.pixels.nightSide, 1)} (held ${fmt(waningFarDrift, 1)}), ` +
+        `gap ${fmt(waning.pixels.nightSide - waning.pixels.litSide, 1)}`,
     );
     near("cycle/same-phase-mirrored-waist", waning.phase.rx, waxing.phase.rx, 0.01);
     near(
@@ -1837,12 +1938,13 @@ async function main() {
     const endFarDrop = breakStart.pixels.nightSide - breakEnd.pixels.nightSide;
     record(
       "cycle/break-end-dark",
-      endNearDrop >= 20 &&
+      endNearDrop >= 10 &&
         endFarDrop >= 4 &&
         breakEnd.pixels.litSide <= 56 &&
-        breakEnd.pixels.nightSide <= 48,
+        breakEnd.pixels.nightSide <= 58,
       `left ${fmt(breakStart.pixels.litSide, 1)} → ${fmt(breakEnd.pixels.litSide, 1)} (drop ${fmt(endNearDrop, 1)}), ` +
-        `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(breakEnd.pixels.nightSide, 1)} (drop ${fmt(endFarDrop, 1)})`,
+        `right ${fmt(breakStart.pixels.nightSide, 1)} → ${fmt(breakEnd.pixels.nightSide, 1)} (drop ${fmt(endFarDrop, 1)}; ` +
+        `the right is the last lit lune at 4%, so it ends a step above the left)`,
     );
 
     /* 6. Zero completes the break on its own and arms the next dark focus. */

@@ -1356,6 +1356,13 @@ own inset less 14px (`HALO_AIR` in `components/focus/geometry.ts`), the same
 fraction of the disc at every size — 336px against a 308px moon on the desktop,
 207 against 179 on a phone.
 
+**One more step out (2026-10-23).** The moon still read small inside a large
+ring, so the inset is now **8% a side — 84% of the dial**: 322px on the desktop,
+230px on the phone, 186px in the panel, with the graduation ring's inner tips
+15px, 6px and 2px away. The table above is the pass this replaced;
+`desktop/disc-size` reads the 8% out of `moonGeometry` rather than a copied 80%,
+so the next change to it is a check the suite has to agree with.
+
 ### Two checks changed with the pass
 
 1. **The quiet pair's parity check.** It compared the room's skip and reset to the

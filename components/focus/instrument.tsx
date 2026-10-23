@@ -152,7 +152,12 @@ export function FocusInstrument({
         reduceMotion={reduceMotion}
       />
 
-      <MoonLimb inset={moon.inset} />
+      {/*
+       * The rim and the limb shade are the last thing that follows the phase.
+       * A break is point-reflected, so its light is too; the moon must not wear
+       * its highlight on the crescent the break just darkened.
+       */}
+      <MoonLimb inset={moon.inset} flip={mode !== "focus"} />
 
       <SatelliteOrbit tone={tone} toneKey={toneKey} ringSize={ringSize} />
 

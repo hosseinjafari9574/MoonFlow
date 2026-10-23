@@ -53,6 +53,24 @@ import type { TimerMode } from "@/lib/types";
 export const MOON_LIGHT = { x: 24, y: 68 } as const;
 
 /**
+ * The same light, turned for a break: the point reflection of `MOON_LIGHT`.
+ *
+ * A break's phase is point-reflected — its lit half is on the other limb, so the
+ * darkness enters from the side focus filled. The body's light has to turn with
+ * the face it belongs to. Left where focus put it, a draining moon wore its rim
+ * light and its far-limb shade on the unlit crescent: at the break's 40% phase
+ * the 2px rim sat on the lower-left, where the surface is at its darkest, and
+ * read as a scratch drawn beside the disc rather than as its edge — the one
+ * bright thing on the night side. Point-reflecting the two shadows puts the rim
+ * on the lit limb and the shade on the darkened one, the same figure a focus
+ * moon draws, half a turn round.
+ */
+export const MOON_LIGHT_TURNED = {
+  x: 100 - MOON_LIGHT.x,
+  y: 100 - MOON_LIGHT.y,
+} as const;
+
+/**
  * The unit vector from the light, through the disc: the axis the terminator's
  * ellipse is turned on, and the direction its waist is measured along. Away from
  * the source, so it points up and to the right and the last of the light to go
@@ -334,17 +352,19 @@ export function moonGeometry(ringSize: number, progress: number): MoonGeometry {
   /*
    * The disc's inset, and with it the size of the reading inside it.
    *
-   * 10% a side. It has been at both ends of this before: 13% left the moon
-   * reading as a small object parked in the middle of a ring rather than as the
-   * instrument the ring is drawn around, and 8.5% swung the other way — at 83% of
-   * the dial the graduation ring had **18px** of air at the desktop size and
-   * **4px** on a phone, so the moon's glow and sixty ticks crowded each other and
-   * the instrument read busy rather than large. At 80% of the dial the ticks keep
-   * 25px above them on the desktop and 10px on a phone — the moon is still the
-   * largest thing in the instrument, and the ring around it is still a ring
-   * (`.freebuff/asym-probe.mjs` reads the ratio back at four viewports).
+   * 8% a side, 84% of the dial. The line has been walked before: 13% read as a
+   * small object parked in the middle of the ring rather than as the instrument
+   * the ring is drawn around, and 8.5% left the glow and the sixty graduations
+   * 17px / 4px apart, which read busy rather than large; 10% was the middle that
+   * pass settled on. The 2026-10-23 ask was *bigger* again, and this is the step
+   * that grows the disc without eating the ring: 14px more diameter on the
+   * desktop dial (322px), 10px on the phone (230px), 8px in the panel (186px).
+   * The disc still clears the graduations' inner tips by 15px at the desktop
+   * size, 6px on the phone and 2px in the panel, and the halo's last, nearly
+   * transparent stop is what now meets the ticks at the smallest size — at 7% a
+   * side the panel's moon edge sat on the ticks themselves.
    */
-  const inset = Math.round(ringSize * 0.1);
+  const inset = Math.round(ringSize * 0.08);
   const disc = ringSize - inset * 2;
   /*
    * The clock was 0.235 of the *ring* (and 42px at the panel size), which is
