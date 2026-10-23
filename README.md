@@ -227,7 +227,9 @@ npm run prepare:moon # rebuild the moon's surface asset (needs Chrome)
   and deletes them, with undo on delete and on apply.
 - **Stats & streak** — completed today, focus minutes today, current streak and
   a last-7-days focus chart.
-- **Sound effects** — synthesised WebAudio chimes (no assets), toggleable.
+- **Sound effects** — synthesised WebAudio chimes (no assets), toggleable:
+  a short tick-tock when a clock starts, then a bell for the end of a session
+  and a softer pair when a break is over.
 - **Toasts** — undo for delete and completion.
 
 ## Keyboard shortcuts

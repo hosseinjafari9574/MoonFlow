@@ -4,7 +4,12 @@
  * policies are respected.
  */
 
-export type SoundName = "complete" | "session-end" | "break-end" | "soft";
+export type SoundName =
+  | "complete"
+  | "session-end"
+  | "break-end"
+  | "soft"
+  | "tick-tock";
 
 let context: AudioContext | null = null;
 
@@ -77,6 +82,22 @@ const PRESETS: Record<SoundName, ToneOptions[]> = {
   ],
   // Subtle tick used for focus start / mode switches.
   soft: [{ frequency: 523.25, duration: 0.22, gain: 0.08, type: "triangle" }],
+  /*
+   * The clock announcing itself: six wooden ticks over three seconds, a fifth
+   * apart, alternating high/low so the pair reads as a clock rather than a
+   * metronome. It is a gesture, not a countdown — long enough that starting a
+   * session feels heard, short enough that it never competes with the work it
+   * is starting. Each tick is 45ms of triangle at low gain: an escapement
+   * click, not a note.
+   */
+  "tick-tock": [
+    { frequency: 1046.5, duration: 0.045, gain: 0.055, type: "triangle" },
+    { frequency: 783.99, at: 0.5, duration: 0.045, gain: 0.05, type: "triangle" },
+    { frequency: 1046.5, at: 1, duration: 0.045, gain: 0.05, type: "triangle" },
+    { frequency: 783.99, at: 1.5, duration: 0.045, gain: 0.045, type: "triangle" },
+    { frequency: 1046.5, at: 2, duration: 0.045, gain: 0.04, type: "triangle" },
+    { frequency: 783.99, at: 2.5, duration: 0.045, gain: 0.035, type: "triangle" },
+  ],
 };
 
 export function playSound(name: SoundName) {
